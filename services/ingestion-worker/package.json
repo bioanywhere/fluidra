@@ -1,0 +1,6 @@
+{
+  "name": "ingestion-worker",
+  "version": "0.1.0",
+  "comment": "Batch job, not a long-running dev server — no dev script.",
+  "scripts": {}
+}

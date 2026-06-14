@@ -122,6 +122,24 @@ uv run pytest tests/safety/ -v
 
 ---
 
+## Ingesting a manual (Milestone 3)
+
+```bash
+# Offline (no DB): parse -> chunk -> embed (fake) -> in-memory store, report counts
+uv run python -m ingestion_worker.ingest data/manuals/aquapure_h0567500.md \
+  --store inmemory --backend fake
+
+# Into local pgvector (needs `make dev` Postgres — uses the pgvector/pgvector image):
+uv run python -m ingestion_worker.ingest data/manuals/aquapure_h0567500.md \
+  --store pgvector --backend auto
+```
+
+Embeddings use Vertex AI `text-embedding-005` when ADC + the SDK are available
+(`--backend vertex`), else a deterministic fake fallback (`--backend fake`) so
+the pipeline runs fully offline. The vector store is behind an interface
+(`InMemoryVectorStore`, `PgVectorStore`) so Vertex AI Vector Search swaps in
+later with no call-site changes.
+
 ## Database operations
 
 ```bash
@@ -167,7 +185,7 @@ fluidra-pool-assistant/
 | # | What | Verify |
 |---|------|--------|
 | **M1** | Repo skeleton + health check + DB schema | `curl :8080/healthz` → ok |
-| M2 | Safety gateway (classifier, hard blocks) | `pytest tests/safety` → 100% |
-| M3 | Ingestion + pgvector retrieval | Chunk count + fault-code lookup |
+| ✅ **M2** | Safety gateway (classifier, hard blocks) | `pytest tests/safety` → 100% |
+| ✅ **M3** | Ingestion + pgvector retrieval | Chunk count + fault-code lookup |
 | M4 | Orchestrator (LangGraph + Gemini) | Grounded answer with citation |
 | M5 | End-to-end wired + eval gate | Full demo flow + eval green |

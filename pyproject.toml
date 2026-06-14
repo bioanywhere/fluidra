@@ -4,6 +4,7 @@ members = [
     "services/chat-api",
     "services/safety-gateway",
     "services/orchestrator",
+    "services/ingestion-worker",
     "packages/shared-types",
     "packages/safety-policy",
     "packages/chemistry-tables",
