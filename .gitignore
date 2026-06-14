@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# uv (uv.lock IS tracked — reproducible builds, per blueprint Appendix A)
+.uv/
+
+# Environment
+.env
+!.env.example
+
+# Node / Turborepo
+node_modules/
+.turbo/
+.next/
+dist/
+coverage/
+
+# Docker
+.docker/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large reference media (kept locally, not in the repo — ~80MB of binaries)
+*.mp4
+*.m4a
+
+# GCP / credentials (never commit these)
+*.json
+!package.json
+!tsconfig*.json
+!turbo.json
+application_default_credentials.json

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shared-types"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Pydantic models shared across all services — single source of truth for the API contract."
+dependencies = [
+    "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shared_types"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

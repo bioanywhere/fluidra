@@ -1,0 +1,32 @@
+# uv workspace root — virtual workspace (no top-level package)
+[tool.uv.workspace]
+members = [
+    "services/chat-api",
+    "services/safety-gateway",
+    "services/orchestrator",
+    "packages/shared-types",
+    "packages/safety-policy",
+    "packages/chemistry-tables",
+]
+
+[tool.uv.sources]
+shared-types     = { workspace = true }
+safety-policy    = { workspace = true }
+chemistry-tables = { workspace = true }
+
+# Dev tooling installed at the workspace root so `uv run pytest` works from here.
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# importlib mode lets multiple service `tests/` dirs coexist without unique
+# package names (no __init__.py needed in test dirs).
+addopts = "--import-mode=importlib"
+# Repo-level adversarial corpus lives in tests/safety; service tests live under
+# each service. Pass an explicit path to scope a run (e.g. tests/safety).
+testpaths = ["tests/safety"]

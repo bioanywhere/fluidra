@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chemistry-tables"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Validated pool-chemistry dosing tables and safe-range constants. Changes require chemistry review."
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chemistry_tables"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
