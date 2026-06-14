@@ -11,17 +11,16 @@ dependencies = [
     "numpy>=1.26",
     "pypdf>=4.2.0",
     "shared-types",
-]
-
-# Heavy / environment-specific deps are optional and imported lazily, so the
-# pipeline + tests run fully offline with fake embeddings and the in-memory store.
-[project.optional-dependencies]
-vertex = ["google-cloud-aiplatform>=1.60.0"]
-pgvector = [
+    # pgvector store is the local/dev default (blueprint's small-scale fallback).
     "sqlalchemy>=2.0.30",
     "pgvector>=0.3.0",
     "psycopg2-binary>=2.9.9",
 ]
+
+# Vertex SDK is heavy and only needed for real embeddings; kept optional and
+# imported lazily so the pipeline + tests run fully offline (fake embeddings).
+[project.optional-dependencies]
+vertex = ["google-cloud-aiplatform>=1.60.0"]
 
 [dependency-groups]
 dev = [

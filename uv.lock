@@ -837,16 +837,14 @@ version = "0.1.0"
 source = { editable = "services/ingestion-worker" }
 dependencies = [
     { name = "numpy" },
+    { name = "pgvector" },
+    { name = "psycopg2-binary" },
     { name = "pypdf" },
     { name = "shared-types" },
+    { name = "sqlalchemy" },
 ]
 
 [package.optional-dependencies]
-pgvector = [
-    { name = "pgvector" },
-    { name = "psycopg2-binary" },
-    { name = "sqlalchemy" },
-]
 vertex = [
     { name = "google-cloud-aiplatform" },
 ]
@@ -860,13 +858,13 @@ dev = [
 requires-dist = [
     { name = "google-cloud-aiplatform", marker = "extra == 'vertex'", specifier = ">=1.60.0" },
     { name = "numpy", specifier = ">=1.26" },
-    { name = "pgvector", marker = "extra == 'pgvector'", specifier = ">=0.3.0" },
-    { name = "psycopg2-binary", marker = "extra == 'pgvector'", specifier = ">=2.9.9" },
+    { name = "pgvector", specifier = ">=0.3.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pypdf", specifier = ">=4.2.0" },
     { name = "shared-types", editable = "packages/shared-types" },
-    { name = "sqlalchemy", marker = "extra == 'pgvector'", specifier = ">=2.0.30" },
+    { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]
-provides-extras = ["vertex", "pgvector"]
+provides-extras = ["vertex"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.2.0" }]
