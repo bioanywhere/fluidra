@@ -17,6 +17,7 @@ dependencies = [
     "safety-policy",
     "prompts",
     "ingestion-worker",
+    "observability",
 ]
 
 # Vertex SDK only needed for real Gemini calls; imported lazily so tests run
@@ -44,3 +45,4 @@ shared-types     = { workspace = true }
 safety-policy    = { workspace = true }
 prompts          = { workspace = true }
 ingestion-worker = { workspace = true }
+observability    = { workspace = true }

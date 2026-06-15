@@ -200,3 +200,11 @@ module "wif" {
   github_repository = var.github_repository
   depends_on        = [module.services]
 }
+
+module "monitoring" {
+  source                = "../../modules/monitoring"
+  project_id            = var.project_id
+  service_name          = "chat-api"
+  notification_channels = var.notification_channels
+  depends_on            = [module.services]
+}

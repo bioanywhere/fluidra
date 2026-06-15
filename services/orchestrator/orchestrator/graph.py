@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from langgraph.graph import StateGraph, END
 
+from observability import langfuse_trace, set_attributes, span
 from safety_policy import DISCLAIMER_ESCALATION
 from prompts import get_prompt
 
@@ -49,21 +50,33 @@ def build_graph(
     persona = persona if persona is not None else get_prompt("system_persona")
 
     def retrieve(state: TurnState) -> TurnState:
-        filters = _brand_filters(state.get("pool_profile") or {})
-        scored = retrieve_chunks(store, embedder, state["query"], top_k=top_k, filters=filters)
-        state["chunks"] = [s.chunk for s in scored]
+        with span("orchestrator.retrieve") as s:
+            filters = _brand_filters(state.get("pool_profile") or {})
+            scored = retrieve_chunks(store, embedder, state["query"], top_k=top_k, filters=filters)
+            state["chunks"] = [sc.chunk for sc in scored]
+            set_attributes(s, **{"rag.chunks": len(state["chunks"]), "rag.embedder": embedder.name})
         return state
 
     def generate(state: TurnState) -> TurnState:
-        answer = llm.generate(system=persona, chunks=state["chunks"], query=state["query"])
-        state["answer"] = answer
-        state["citations"] = bind_citations(answer, state["chunks"])
+        with span("orchestrator.generate") as s:
+            model = getattr(llm, "name", "unknown")
+            answer = llm.generate(system=persona, chunks=state["chunks"], query=state["query"])
+            state["answer"] = answer
+            state["citations"] = bind_citations(answer, state["chunks"])
+            set_attributes(s, **{"ai.model": model, "ai.answer_chars": len(answer)})
+            langfuse_trace.record_generation(
+                name="orchestrator.generate", prompt=state["query"],
+                completion=answer, model=model,
+                metadata={"chunks": len(state["chunks"])},
+            )
         return state
 
     def verify(state: TurnState) -> TurnState:
-        score = groundedness_score(state["answer"], state["chunks"])
-        state["groundedness"] = score
-        state["grounded"] = score >= threshold
+        with span("orchestrator.verify") as s:
+            score = groundedness_score(state["answer"], state["chunks"])
+            state["groundedness"] = score
+            state["grounded"] = score >= threshold
+            set_attributes(s, **{"ai.groundedness": score, "ai.grounded": state["grounded"]})
         return state
 
     def fallback(state: TurnState) -> TurnState:

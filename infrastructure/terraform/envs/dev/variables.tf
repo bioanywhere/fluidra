@@ -42,3 +42,9 @@ variable "enable_vertex_vector_search" {
   default     = false # off by default: a deployed index endpoint is always-on cost
   description = "Provision Vertex AI Vector Search and point chat-api at it (else pgvector)."
 }
+
+variable "notification_channels" {
+  type        = list(string)
+  default     = []
+  description = "Cloud Monitoring notification channel IDs for alert policies."
+}

@@ -11,30 +11,19 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-from pythonjsonlogger.json import JsonFormatter
 
+from observability import init_tracing, setup_logging
 from ingestion_worker.embeddings import get_embedder
 from ingestion_worker.vectorstore import PgVectorStore
 
 from .graph import answer as run_answer
 from .llm import get_llm
 
-_setup_done = False
-
-
-def _setup_logging() -> None:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JsonFormatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
-    root = logging.getLogger()
-    root.handlers = [handler]
-    root.setLevel("INFO")
-
-
-_setup_logging()
+setup_logging("orchestrator")
+init_tracing("orchestrator")  # exporter chosen by OTEL_TRACES_EXPORTER (no-op locally)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Fluidra Pool Assistant — orchestrator", version="0.1.0")

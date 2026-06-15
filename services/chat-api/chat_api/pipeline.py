@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from shared_types import Citation
 
+from observability import set_attributes, span
 from safety_gateway.classifier import classify
 from safety_gateway.router import route
 from safety_policy import DISCLAIMER_CHEMICAL_MIXING, DISCLAIMER_PHYSICAL_RISK
@@ -35,9 +36,50 @@ class TurnOutcome:
 
 
 def handle_turn(message: str, *, store, embedder, llm, intent_model) -> TurnOutcome:
-    """Classify a message and route it to exactly one handler."""
-    decision = classify(message, intent_model)
+    """Classify a message and route it to exactly one handler.
 
+    The whole turn is one trace: safety.classify -> (orchestrator.retrieve ->
+    generate -> verify) for Tier-1, with tier/intent/groundedness on the span
+    (blueprint §9.2)."""
+    with span("chat.turn") as turn:
+        with span("safety.classify") as classify_span:
+            decision = classify(message, intent_model)
+            set_attributes(
+                classify_span,
+                **{
+                    "safety.tier": decision.tier.value,
+                    "safety.intent": decision.intent,
+                    "safety.blocked": decision.blocked,
+                    "safety.rule": decision.rule or "",
+                    "safety.policy_version": decision.policy_version,
+                },
+            )
+        set_attributes(
+            turn,
+            **{
+                "safety.tier": decision.tier.value,
+                "safety.intent": decision.intent,
+                "safety.blocked": decision.blocked,
+            },
+        )
+        outcome = _route_decision(
+            decision, store=store, embedder=embedder, llm=llm
+        )
+        set_attributes(
+            turn,
+            **{
+                "response.type": outcome.type,
+                "response.tier": outcome.tier,
+                "response.escalated": outcome.escalated,
+                "response.citations": len(outcome.citations),
+            },
+        )
+        if outcome.groundedness is not None:
+            set_attributes(turn, **{"ai.groundedness": outcome.groundedness})
+        return outcome
+
+
+def _route_decision(decision, *, store, embedder, llm) -> TurnOutcome:
     def on_blocked(d) -> TurnOutcome:
         # Hard-blocked chemical mixing — safety refusal, never reaches the LLM.
         return TurnOutcome(

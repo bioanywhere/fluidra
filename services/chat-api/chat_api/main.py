@@ -1,12 +1,11 @@
 import logging
-import sys
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
-from pythonjsonlogger.json import JsonFormatter as JsonLogFormatter
 from sqlalchemy import text
 
+from observability import init_tracing, setup_logging
 from shared_types import ChatRequest, ChatResponse
 from safety_gateway.intent import KeywordIntentModel
 from safety_policy import redact
@@ -20,26 +19,13 @@ from .rag import get_rag
 
 _intent_model = KeywordIntentModel()
 
-
-def _setup_logging() -> None:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(
-        JsonLogFormatter("%(asctime)s %(name)s %(levelname)s %(message)s")
-    )
-    root = logging.getLogger()
-    root.handlers = [handler]
-    root.setLevel(settings.log_level)
-    # keep uvicorn logs going through our formatter
-    logging.getLogger("uvicorn").propagate = True
-    logging.getLogger("uvicorn.access").propagate = True
-
-
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _setup_logging()
+    setup_logging("chat-api", settings.log_level)
+    init_tracing("chat-api")  # exporter chosen by OTEL_TRACES_EXPORTER (no-op locally)
     logger.info(
         "chat-api starting",
         extra={"service": "chat-api", "env": settings.env, "port": settings.port},
@@ -108,7 +94,8 @@ async def chat(
         extra={
             "tier": outcome.tier, "type": outcome.type, "intent": outcome.intent,
             "blocked": outcome.blocked, "escalated": outcome.escalated,
-            "latency_ms": latency_ms,
+            "groundedness": outcome.groundedness, "latency_ms": latency_ms,
+            "cost_usd": cost_usd,
         },
     )
 
