@@ -103,7 +103,7 @@ resource "google_monitoring_dashboard" "main" {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter = "resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${var.service_name}\" metric.type=\"run.googleapis.com/request_latencies\""
+                  filter      = "resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${var.service_name}\" metric.type=\"run.googleapis.com/request_latencies\""
                   aggregation = { alignmentPeriod = "60s", perSeriesAligner = "ALIGN_PERCENTILE_95" }
                 }
               }
@@ -116,7 +116,7 @@ resource "google_monitoring_dashboard" "main" {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter = "metric.type=\"logging.googleapis.com/user/fluidra/groundedness\""
+                  filter      = "metric.type=\"logging.googleapis.com/user/fluidra/groundedness\""
                   aggregation = { alignmentPeriod = "300s", perSeriesAligner = "ALIGN_DELTA", crossSeriesReducer = "REDUCE_MEAN" }
                 }
               }
@@ -129,7 +129,7 @@ resource "google_monitoring_dashboard" "main" {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter = "metric.type=\"logging.googleapis.com/user/fluidra/safety_blocks\""
+                  filter      = "metric.type=\"logging.googleapis.com/user/fluidra/safety_blocks\""
                   aggregation = { alignmentPeriod = "300s", perSeriesAligner = "ALIGN_DELTA" }
                 }
               }
@@ -142,7 +142,7 @@ resource "google_monitoring_dashboard" "main" {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter = "resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${var.service_name}\" metric.type=\"run.googleapis.com/request_count\""
+                  filter      = "resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"${var.service_name}\" metric.type=\"run.googleapis.com/request_count\""
                   aggregation = { alignmentPeriod = "60s", perSeriesAligner = "ALIGN_RATE" }
                 }
               }

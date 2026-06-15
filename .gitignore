@@ -63,6 +63,5 @@ application_default_credentials.json
 crash.log
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
 override.tf
 override.tf.json
