@@ -15,7 +15,8 @@
 
 FROM python:3.12-slim AS build
 RUN pip install --no-cache-dir uv
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+# UV_HTTP_TIMEOUT raised so uv tolerates slow/flaky PyPI fetches during the build.
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_HTTP_TIMEOUT=300
 WORKDIR /app
 
 # Copy the whole workspace (the .dockerignore keeps it lean) so uv can resolve

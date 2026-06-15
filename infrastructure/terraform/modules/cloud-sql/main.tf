@@ -41,7 +41,8 @@ resource "google_sql_database_instance" "this" {
 
   settings {
     tier              = var.tier
-    availability_type = "ZONAL" # dev; REGIONAL for prod HA
+    edition           = "ENTERPRISE" # ENTERPRISE_PLUS rejects db-custom-* tiers
+    availability_type = "ZONAL"      # dev; REGIONAL for prod HA
     disk_autoresize   = true
     backup_configuration {
       enabled                        = true
