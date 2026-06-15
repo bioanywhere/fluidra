@@ -14,6 +14,7 @@ retrieval.py so it is identical across stores.
 """
 from __future__ import annotations
 
+import os
 from typing import Protocol
 
 import numpy as np
@@ -185,3 +186,23 @@ class PgVectorStore:
 
         with self._engine.connect() as conn:
             return int(conn.execute(text(f"SELECT COUNT(*) FROM {self._table}")).scalar())
+
+
+# ── Backend selection (config-only swap; blueprint: pgvector -> Vertex) ───────
+DEFAULT_DSN = "postgresql+psycopg2://postgres:localdev@localhost:5432/assistant"
+
+
+def get_vector_store(dim: int, *, backend: str | None = None, dsn: str | None = None) -> VectorStore:
+    """Return the configured vector store. VECTOR_BACKEND = pgvector (default) |
+    vertex | inmemory. Selecting Vertex AI Vector Search is a config change only —
+    every call site uses the same VectorStore protocol."""
+    backend = (backend or os.getenv("VECTOR_BACKEND", "pgvector")).lower()
+    if backend == "inmemory":
+        return InMemoryVectorStore()
+    if backend == "pgvector":
+        return PgVectorStore(dsn=dsn or os.getenv("DATABASE_URL_SYNC", DEFAULT_DSN), dim=dim)
+    if backend == "vertex":
+        from .vertex_store import VertexVectorSearchStore  # lazy: needs aiplatform
+
+        return VertexVectorSearchStore.from_env(dim)
+    raise ValueError(f"unknown VECTOR_BACKEND {backend!r} (use pgvector|vertex|inmemory)")

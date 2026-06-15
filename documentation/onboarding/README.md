@@ -136,9 +136,10 @@ uv run python -m ingestion_worker.ingest data/manuals/aquapure_h0567500.md \
 
 Embeddings use Vertex AI `text-embedding-005` when ADC + the SDK are available
 (`--backend vertex`), else a deterministic fake fallback (`--backend fake`) so
-the pipeline runs fully offline. The vector store is behind an interface
-(`InMemoryVectorStore`, `PgVectorStore`) so Vertex AI Vector Search swaps in
-later with no call-site changes.
+the pipeline runs fully offline. The vector store is selected by `VECTOR_BACKEND`
+(`pgvector` default · `vertex` · `inmemory`) — `InMemoryVectorStore`,
+`PgVectorStore`, and `VertexVectorSearchStore` all satisfy one interface, so
+swapping to Vertex AI Vector Search is config-only (no call-site changes).
 
 ## Talking to the assistant (Milestone 5)
 

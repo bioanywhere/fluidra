@@ -124,6 +124,32 @@ git tag v0.1.0 && git push origin v0.1.0   # triggers .github/workflows/deploy.y
 
 ---
 
+## Swapping pgvector → Vertex AI Vector Search
+
+The vector store is config-only (`VECTOR_BACKEND`); no code changes.
+
+```bash
+cd infrastructure/terraform/envs/dev
+terraform apply -var="enable_vertex_vector_search=true"
+```
+
+This provisions a streaming Vertex index + endpoint (dimensions 768 =
+text-embedding-005), points chat-api at it (`VECTOR_BACKEND=vertex` + the index/
+endpoint/deployed-id env), and switches the ingestion job to `--store vertex`.
+Then re-run ingestion to populate it:
+
+```bash
+gcloud run jobs execute ingestion-worker --region europe-west1 --wait
+```
+
+Vertex Vector Search holds the vectors; chunk payloads live in a Postgres
+`manual_chunk_docs` table (the store resolves neighbor IDs → chunks). A deployed
+index endpoint runs dedicated replicas (always-on cost), so it is **off by
+default** in dev.
+
+Locally you can point at any backend with the env var:
+`VECTOR_BACKEND=inmemory|pgvector|vertex`.
+
 ## Rollback (blueprint §11.5)
 
 ```bash

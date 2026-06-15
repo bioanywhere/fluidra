@@ -16,9 +16,9 @@ import argparse
 import os
 import sys
 
-from .embeddings import FakeEmbedder, get_embedder
+from .embeddings import get_embedder
 from .pipeline import ingest
-from .vectorstore import InMemoryVectorStore, PgVectorStore
+from .vectorstore import InMemoryVectorStore, get_vector_store
 
 # Defaults describe the bundled dev manual.
 DEFAULTS = {
@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--model", default=DEFAULTS["model"])
     p.add_argument("--url", default=DEFAULTS["url"])
     p.add_argument("--locale", default="en")
-    p.add_argument("--store", choices=["inmemory", "pgvector"], default="pgvector")
+    p.add_argument("--store", choices=["inmemory", "pgvector", "vertex"], default="pgvector")
     p.add_argument("--backend", choices=["auto", "fake", "vertex"], default="auto",
                    help="embedding backend; overrides EMBEDDING_BACKEND")
     p.add_argument("--dsn",
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.store == "inmemory":
         store = InMemoryVectorStore()
     else:
-        store = PgVectorStore(dsn=args.dsn, dim=embedder.dim)
+        store = get_vector_store(embedder.dim, backend=args.store, dsn=args.dsn)
 
     result = ingest(
         args.source,

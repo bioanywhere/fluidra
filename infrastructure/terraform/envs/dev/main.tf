@@ -46,7 +46,7 @@ locals {
   ingestion_image   = "${module.registry.repository_path}/ingestion-worker:${var.image_tag}"
   eval_runner_image = "${module.registry.repository_path}/eval-runner:${var.image_tag}"
 
-  app_env = {
+  base_env = {
     ENV                   = "dev"
     GCP_PROJECT_ID        = var.project_id
     GCP_REGION            = var.region
@@ -59,10 +59,39 @@ locals {
     MAX_TURNS_MEMORY      = "10"
     DB_NAME               = var.db_name
   }
+
+  # Vector backend is config-only: Vertex when enabled, else pgvector. Splat +
+  # one() keeps these safe to reference when the module count is 0.
+  vector_env = var.enable_vertex_vector_search ? {
+    VECTOR_BACKEND           = "vertex"
+    VECTOR_INDEX             = one(module.vector_search[*].index_id)
+    VECTOR_INDEX_ENDPOINT    = one(module.vector_search[*].index_endpoint_id)
+    VECTOR_DEPLOYED_INDEX_ID = one(module.vector_search[*].deployed_index_id)
+    VECTOR_DISTANCE_MEASURE  = "COSINE_DISTANCE"
+    } : {
+    VECTOR_BACKEND = "pgvector"
+  }
+
+  app_env = merge(local.base_env, local.vector_env)
+
+  ingest_args = var.enable_vertex_vector_search ? [
+    "data/manuals/aquapure_h0567500.md", "--store", "vertex", "--backend", "vertex"
+    ] : [
+    "data/manuals/aquapure_h0567500.md", "--store", "pgvector", "--backend", "vertex"
+  ]
+
   db_secrets = {
     DATABASE_URL      = module.secret_db_url.secret_id
     DATABASE_URL_SYNC = module.secret_db_url_sync.secret_id
   }
+}
+
+module "vector_search" {
+  count      = var.enable_vertex_vector_search ? 1 : 0
+  source     = "../../modules/vector-search"
+  project_id = var.project_id
+  region     = var.region
+  depends_on = [module.services]
 }
 
 # ── Secrets (DB URLs generated here; firebase-config is an empty slot) ────────
@@ -144,7 +173,7 @@ module "ingestion_job" {
   service_account_email = module.worker_sa.email
   cloudsql_connection   = local.conn
   command               = ["python", "-m", "ingestion_worker.ingest"]
-  args                  = ["data/manuals/aquapure_h0567500.md", "--store", "pgvector", "--backend", "vertex"]
+  args                  = local.ingest_args
   env                   = local.app_env
   secrets               = local.db_secrets
   depends_on            = [module.sql, module.secret_db_url_sync]

@@ -36,3 +36,9 @@ variable "allow_unauthenticated" {
   default     = true # dev: public so you can curl it. Lock down in staging/prod.
   description = "Allow unauthenticated invocation of the Cloud Run service."
 }
+
+variable "enable_vertex_vector_search" {
+  type        = bool
+  default     = false # off by default: a deployed index endpoint is always-on cost
+  description = "Provision Vertex AI Vector Search and point chat-api at it (else pgvector)."
+}
