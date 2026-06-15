@@ -1,6 +1,7 @@
 {
   "name": "orchestrator",
   "version": "0.1.0",
-  "comment": "dev script is added in Milestone 4 when the FastAPI app exists.",
-  "scripts": {}
+  "scripts": {
+    "dev": "uv run uvicorn orchestrator.main:app --host 0.0.0.0 --port 8082 --reload"
+  }
 }

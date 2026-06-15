@@ -8,12 +8,15 @@ members = [
     "packages/shared-types",
     "packages/safety-policy",
     "packages/chemistry-tables",
+    "packages/prompts",
 ]
 
 [tool.uv.sources]
 shared-types     = { workspace = true }
 safety-policy    = { workspace = true }
 chemistry-tables = { workspace = true }
+prompts          = { workspace = true }
+ingestion-worker = { workspace = true }
 
 # Dev tooling installed at the workspace root so `uv run pytest` works from here.
 [dependency-groups]

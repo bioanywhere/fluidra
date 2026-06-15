@@ -1,0 +1,5 @@
+# Prompt registry — maps a logical prompt name to its ACTIVE versioned file.
+# Bumping a version here is a deliberate, reviewed change and runs through evals
+# before merge (blueprint §6.3). Add new prompts (dosing_explainer,
+# fault_code_lookup) as they are introduced.
+system_persona: system_persona.v1.md
