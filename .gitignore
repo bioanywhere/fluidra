@@ -53,3 +53,14 @@ Thumbs.db
 !tsconfig*.json
 !turbo.json
 application_default_credentials.json
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+override.tf
+override.tf.json

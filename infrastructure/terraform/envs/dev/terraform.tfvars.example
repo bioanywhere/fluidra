@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+project_id        = "fluidra-pool-asst-dev"
+region            = "europe-west1"
+image_tag         = "latest"
+github_repository = "bioanywhere/fluidra"
+allow_unauthenticated = true

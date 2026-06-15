@@ -1,0 +1,87 @@
+name: deploy
+
+# Tag-triggered deploy to the dev GCP project via Workload Identity Federation
+# (OIDC — no long-lived keys; blueprint §11.4).
+#
+# Required GitHub config (Settings → Secrets and variables → Actions):
+#   secrets:   WIF_PROVIDER, DEPLOY_SA
+#   variables: GCP_PROJECT_ID, GCP_REGION, TF_STATE_BUCKET
+# All are produced by `terraform apply` outputs / your bootstrap.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      EMBEDDING_BACKEND: fake
+      LLM_BACKEND: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: Tests + safety + eval gate
+        run: |
+          uv run pytest tests/safety services packages -q
+          uv run python -m eval_runner --gate
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build & push images
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/svc"
+          build() { # service  app_module
+            docker build -f infrastructure/docker/python.Dockerfile \
+              --build-arg SERVICE="$1" --build-arg APP_MODULE="$2" \
+              -t "${REPO}/$1:${TAG}" .
+            docker push "${REPO}/$1:${TAG}"
+          }
+          build chat-api        chat_api.main:app
+          build ingestion-worker unused
+          build eval-runner      unused
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform apply (dev)
+        working-directory: infrastructure/terraform/envs/dev
+        run: |
+          terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          terraform apply -auto-approve \
+            -var="project_id=${PROJECT_ID}" \
+            -var="region=${REGION}" \
+            -var="image_tag=${GITHUB_REF_NAME}"
+
+      - name: Smoke test
+        working-directory: infrastructure/terraform/envs/dev
+        run: |
+          URL=$(terraform output -raw chat_api_url)
+          cd "${GITHUB_WORKSPACE}"
+          ./scripts/smoke.sh "${URL}"
