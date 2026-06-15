@@ -38,3 +38,19 @@ jobs:
 
       - name: Eval gate (golden set + safety thresholds)
         run: uv run python -m eval_runner --gate
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm --filter web typecheck
+      - name: Test (components + a11y + api)
+        run: pnpm --filter web test
