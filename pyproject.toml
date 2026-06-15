@@ -5,6 +5,8 @@ members = [
     "services/safety-gateway",
     "services/orchestrator",
     "services/ingestion-worker",
+    "services/dosing-service",
+    "services/eval-runner",
     "packages/shared-types",
     "packages/safety-policy",
     "packages/chemistry-tables",
@@ -17,6 +19,9 @@ safety-policy    = { workspace = true }
 chemistry-tables = { workspace = true }
 prompts          = { workspace = true }
 ingestion-worker = { workspace = true }
+dosing-service   = { workspace = true }
+safety-gateway   = { workspace = true }
+orchestrator     = { workspace = true }
 
 # Dev tooling installed at the workspace root so `uv run pytest` works from here.
 [dependency-groups]

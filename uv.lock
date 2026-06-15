@@ -11,6 +11,8 @@ resolution-markers = [
 members = [
     "chat-api",
     "chemistry-tables",
+    "dosing-service",
+    "eval-runner",
     "ingestion-worker",
     "orchestrator",
     "prompts",
@@ -257,11 +259,17 @@ source = { editable = "services/chat-api" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "dosing-service" },
     { name = "fastapi" },
+    { name = "ingestion-worker" },
+    { name = "orchestrator" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-json-logger" },
+    { name = "safety-gateway" },
+    { name = "safety-policy" },
+    { name = "shared-types" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -277,11 +285,17 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
+    { name = "dosing-service", editable = "services/dosing-service" },
     { name = "fastapi", specifier = ">=0.111.0" },
+    { name = "ingestion-worker", editable = "services/ingestion-worker" },
+    { name = "orchestrator", editable = "services/orchestrator" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.7.0" },
     { name = "pydantic-settings", specifier = ">=2.3.0" },
     { name = "python-json-logger", specifier = ">=2.0.7" },
+    { name = "safety-gateway", editable = "services/safety-gateway" },
+    { name = "safety-policy", editable = "packages/safety-policy" },
+    { name = "shared-types", editable = "packages/shared-types" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29.0" },
 ]
@@ -395,6 +409,52 @@ sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", hash = "sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b", size = 22484, upload-time = "2026-04-14T04:09:18.638Z" },
 ]
+
+[[package]]
+name = "dosing-service"
+version = "0.1.0"
+source = { editable = "services/dosing-service" }
+dependencies = [
+    { name = "chemistry-tables" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "chemistry-tables", editable = "packages/chemistry-tables" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.2.0" }]
+
+[[package]]
+name = "eval-runner"
+version = "0.1.0"
+source = { editable = "services/eval-runner" }
+dependencies = [
+    { name = "chat-api" },
+    { name = "ingestion-worker" },
+    { name = "orchestrator" },
+    { name = "safety-gateway" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "chat-api", editable = "services/chat-api" },
+    { name = "ingestion-worker", editable = "services/ingestion-worker" },
+    { name = "orchestrator", editable = "services/orchestrator" },
+    { name = "safety-gateway", editable = "services/safety-gateway" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.2.0" }]
 
 [[package]]
 name = "fastapi"

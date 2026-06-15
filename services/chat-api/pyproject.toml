@@ -16,6 +16,12 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
     "python-json-logger>=2.0.7",
+    "shared-types",
+    "safety-policy",
+    "safety-gateway",
+    "orchestrator",
+    "dosing-service",
+    "ingestion-worker",
 ]
 
 [dependency-groups]
@@ -32,3 +38,11 @@ packages = ["chat_api"]
 asyncio_mode = "auto"
 addopts = "--import-mode=importlib"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+shared-types     = { workspace = true }
+safety-policy    = { workspace = true }
+safety-gateway   = { workspace = true }
+orchestrator     = { workspace = true }
+dosing-service   = { workspace = true }
+ingestion-worker = { workspace = true }

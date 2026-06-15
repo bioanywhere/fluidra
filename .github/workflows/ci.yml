@@ -1,0 +1,40 @@
+name: ci
+
+# Blocks merge on safety/eval regression (blueprint §6.6, §11.4).
+# Everything runs offline — fake embeddings, in-memory store, fake LLM — so no
+# Docker/Postgres/Vertex is needed in CI.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      EMBEDDING_BACKEND: fake
+      LLM_BACKEND: fake
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync workspace
+        run: uv sync
+
+      - name: Safety suite (HARD GATE — 100% mixing block)
+        run: uv run pytest tests/safety -q
+
+      - name: Full test suite
+        run: uv run pytest tests/safety services packages -q
+
+      - name: Eval gate (golden set + safety thresholds)
+        run: uv run python -m eval_runner --gate

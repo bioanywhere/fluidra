@@ -3,12 +3,22 @@ import sys
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pythonjsonlogger.json import JsonFormatter as JsonLogFormatter
 from sqlalchemy import text
 
+from shared_types import ChatRequest, ChatResponse
+from safety_gateway.intent import KeywordIntentModel
+from safety_policy import redact
+
+from .auth import get_current_user
 from .config import settings
 from .database import engine
+from .persistence import get_persistence, PersistencePort
+from .pipeline import handle_turn
+from .rag import get_rag
+
+_intent_model = KeywordIntentModel()
 
 
 def _setup_logging() -> None:
@@ -61,3 +71,51 @@ async def healthz():
         )
     latency_ms = round((time.monotonic() - start) * 1000)
     return {"status": "ok", "db": "ok", "latency_ms": latency_ms}
+
+
+@app.post("/v1/chat", response_model=ChatResponse, tags=["chat"])
+async def chat(
+    req: ChatRequest,
+    user: dict = Depends(get_current_user),
+    rag=Depends(get_rag),
+    persistence: PersistencePort = Depends(get_persistence),
+) -> ChatResponse:
+    """The single endpoint clients call (blueprint §5.4). Safety is enforced
+    before generation; the turn is persisted (redacted) with tier/latency/cost."""
+    start = time.monotonic()
+    store, embedder, llm = rag
+
+    # Memory window (loaded per blueprint §1.4; available for future prompt use).
+    await persistence.load_memory(req.conversation_id, settings.max_turns_memory)
+
+    outcome = handle_turn(
+        req.message, store=store, embedder=embedder, llm=llm, intent_model=_intent_model
+    )
+    latency_ms = round((time.monotonic() - start) * 1000)
+    cost_usd = 0.0  # deterministic/fake paths cost nothing; real Gemini wired later
+
+    await persistence.record_turn(
+        conversation_id=req.conversation_id,
+        firebase_uid=user["firebase_uid"],
+        user_text_redacted=redact(req.message),
+        outcome=outcome,
+        latency_ms=latency_ms,
+        cost_usd=cost_usd,
+    )
+
+    logger.info(
+        "chat turn",
+        extra={
+            "tier": outcome.tier, "type": outcome.type, "intent": outcome.intent,
+            "blocked": outcome.blocked, "escalated": outcome.escalated,
+            "latency_ms": latency_ms,
+        },
+    )
+
+    return ChatResponse(
+        tier=outcome.tier,
+        type=outcome.type,
+        content=outcome.content,
+        citations=outcome.citations,
+        warnings=outcome.warnings,
+    )
