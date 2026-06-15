@@ -51,7 +51,7 @@ locals {
     GCP_PROJECT_ID        = var.project_id
     GCP_REGION            = var.region
     VERTEX_LOCATION       = var.region
-    GEMINI_MODEL_FAST     = "gemini-2.0-flash"
+    GEMINI_MODEL_FAST     = "gemini-2.5-flash" # only 2.5-flash is served in europe-west1 for this project
     EMBEDDING_MODEL       = "text-embedding-005"
     EMBEDDING_BACKEND     = "vertex"
     LLM_BACKEND           = "vertex"
@@ -207,4 +207,13 @@ module "monitoring" {
   service_name          = "chat-api"
   notification_channels = var.notification_channels
   depends_on            = [module.services]
+}
+
+module "loadbalancer" {
+  count        = var.enable_load_balancer ? 1 : 0
+  source       = "../../modules/loadbalancer"
+  project_id   = var.project_id
+  region       = var.region
+  service_name = "chat-api"
+  depends_on   = [module.chat_api, module.services]
 }

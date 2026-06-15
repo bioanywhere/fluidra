@@ -65,3 +65,7 @@ crash.log
 !*.tfvars.example
 override.tf
 override.tf.json
+
+# terraform saved plans
+tfplan
+*.tfplan

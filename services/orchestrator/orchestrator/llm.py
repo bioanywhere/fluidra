@@ -93,10 +93,13 @@ def _answer_from_chunk(chunk: Chunk) -> str:
 class VertexGeminiLLM:
     """Gemini via Vertex AI. Lazily constructed."""
 
-    def __init__(self, model: str = GEMINI_FLASH, location: str | None = None):
+    def __init__(self, model: str | None = None, location: str | None = None):
         import vertexai
         from vertexai.generative_models import GenerativeModel  # lazy
 
+        # Model id is env-driven (GEMINI_MODEL_FAST) so changing it never needs a
+        # rebuild — and availability varies by region.
+        model = model or os.getenv("GEMINI_MODEL_FAST", GEMINI_FLASH)
         self.name = model
         project = os.getenv("GCP_PROJECT_ID")
         location = location or os.getenv("VERTEX_LOCATION", "europe-west1")

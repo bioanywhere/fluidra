@@ -3,6 +3,11 @@ output "chat_api_url" {
   value       = module.chat_api.uri
 }
 
+output "lb_ip" {
+  description = "External Application Load Balancer IP for chat-api (if enabled)."
+  value       = try(module.loadbalancer[0].ip, null)
+}
+
 output "registry_path" {
   description = "Artifact Registry path to push images to."
   value       = module.registry.repository_path
