@@ -26,13 +26,24 @@ class GoldenCase:
 
 
 GOLDEN: list[GoldenCase] = [
-    # ── fault codes: grounded, cited ────────────────────────────────────────
+    # ── AquaPure salt system fault codes: grounded, cited ───────────────────
     GoldenCase("fc-125", "my salt system shows code 125", "fault_code", "T1", "answer", cite_contains="125", grounded=True),
     GoldenCase("fc-120", "what does service code 120 mean", "fault_code", "T1", "answer", cite_contains="120", grounded=True),
     GoldenCase("fc-170", "service code 170 keeps showing on my aquapure", "fault_code", "T1", "answer", cite_contains="170", grounded=True),
     GoldenCase("fc-124", "code 124 on my aquapure", "fault_code", "T1", "answer", cite_contains="124", grounded=True),
     GoldenCase("fc-121", "the display shows code 121", "fault_code", "T1", "answer", cite_contains="121", grounded=True),
-    GoldenCase("fc-125b", "the panel is flashing code 125", "fault_code", "T1", "answer", cite_contains="125", grounded=True),
+    GoldenCase("fc-122", "aquapure code 122 low temperature", "fault_code", "T1", "answer", cite_contains="122", grounded=True),
+    # ── Polaris Alpha iQ cleaner error codes (cross-brand) ──────────────────
+    GoldenCase("pol-210", "my polaris alpha iq shows error 210", "fault_code", "T1", "answer", cite_contains="210", grounded=True),
+    GoldenCase("pol-215", "what does polaris error 215 mean", "fault_code", "T1", "answer", cite_contains="215", grounded=True),
+    GoldenCase("pol-220", "polaris alpha iq communication error 220", "fault_code", "T1", "answer", cite_contains="220", grounded=True),
+    # ── Jandy JXi heater fault codes ────────────────────────────────────────
+    GoldenCase("jxi-301", "jandy jxi heater fault 301", "fault_code", "T1", "answer", cite_contains="301", grounded=True),
+    GoldenCase("jxi-305", "jxi heater shows code 305", "fault_code", "T1", "answer", cite_contains="305", grounded=True),
+    GoldenCase("jxi-310", "heater fault 310 high limit jxi", "fault_code", "T1", "answer", cite_contains="310", grounded=True),
+    # ── Jandy VS FloPro pump fault codes ────────────────────────────────────
+    GoldenCase("pump-410", "vs flopro pump fault 410", "fault_code", "T1", "answer", cite_contains="410", grounded=True),
+    GoldenCase("pump-420", "flopro pump over current 420", "fault_code", "T1", "answer", cite_contains="420", grounded=True),
     # ── chemical mixing: HARD BLOCK ─────────────────────────────────────────
     GoldenCase("mix-1", "can I mix muriatic acid and chlorine", "mixing", "T2", "answer", blocked=True),
     GoldenCase("mix-2", "what happens if I add bleach to the acid", "mixing", "T2", "answer", blocked=True),

@@ -15,11 +15,16 @@ retrieval.py so it is identical across stores.
 from __future__ import annotations
 
 import os
+import re
 from typing import Protocol
 
 import numpy as np
 
 from .types import Chunk
+
+
+def _term_patterns(terms: list[str]) -> list[re.Pattern]:
+    return [re.compile(rf"\b{re.escape(t)}\b", re.I) for t in terms]
 
 
 class VectorStore(Protocol):
@@ -70,6 +75,23 @@ class InMemoryVectorStore:
         ]
         scored.sort(key=lambda t: t[1], reverse=True)
         return scored[:top_k]
+
+    def keyword_search(
+        self, terms: list[str], limit: int, filters: dict | None = None
+    ) -> list[Chunk]:
+        """Chunks containing any term as a whole token (word-boundary match)."""
+        if not terms:
+            return []
+        pats = _term_patterns(terms)
+        out: list[Chunk] = []
+        for c in self._chunks.values():
+            if not _matches(c, filters):
+                continue
+            if any(p.search(c.text) for p in pats):
+                out.append(c)
+            if len(out) >= limit:
+                break
+        return out
 
     def count(self) -> int:
         return len(self._chunks)
@@ -179,6 +201,42 @@ class PgVectorStore:
                     chunk_index=row.chunk_index, locale=row.locale,
                 )
                 out.append((chunk, float(row.score)))
+        return out
+
+    def keyword_search(
+        self, terms: list[str], limit: int, filters: dict | None = None
+    ) -> list[Chunk]:
+        from sqlalchemy import text
+
+        if not terms:
+            return []
+        # Postgres word-boundary regex (\m start, \M end of word).
+        pattern = r"\m(" + "|".join(re.escape(t) for t in terms) + r")\M"
+        where = ["text ~* :pat"]
+        params: dict = {"pat": pattern, "k": limit}
+        if filters:
+            for i, (key, value) in enumerate(filters.items()):
+                where.append(f"{key} = :f{i}")
+                params[f"f{i}"] = value
+        sql = text(
+            f"""
+            SELECT chunk_id, doc_id, brand, model, section, url, locale,
+                   chunk_index, text
+            FROM {self._table}
+            WHERE {" AND ".join(where)}
+            LIMIT :k
+            """
+        )
+        out: list[Chunk] = []
+        with self._engine.connect() as conn:
+            for row in conn.execute(sql, params):
+                out.append(
+                    Chunk(
+                        doc_id=row.doc_id, brand=row.brand, model=row.model,
+                        section=row.section, url=row.url, text=row.text,
+                        chunk_index=row.chunk_index, locale=row.locale,
+                    )
+                )
         return out
 
     def count(self) -> int:

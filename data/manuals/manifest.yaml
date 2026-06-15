@@ -1,0 +1,23 @@
+# Priority manual corpus. Paths are relative to this file. Forums / third-party
+# mirrors are never ingested as answers (blueprint §8.3) — only official manuals.
+manuals:
+  - path: aquapure_h0567500.md
+    doc_id: H0567500
+    brand: Jandy
+    model: AquaPure
+    url: https://www.jandy.com/en/products/sanitizers/aquapure
+  - path: polaris_alpha_iq.md
+    doc_id: POL-ALPHAIQ
+    brand: Polaris
+    model: Alpha iQ+
+    url: https://www.polarispool.com/en/robotic-cleaners/alpha-iq
+  - path: jandy_jxi_heater.md
+    doc_id: H0608600
+    brand: Jandy
+    model: JXi
+    url: https://www.jandy.com/en/products/heaters/jxi
+  - path: jandy_vs_flopro_pump.md
+    doc_id: H0574100
+    brand: Jandy
+    model: VS FloPro
+    url: https://www.jandy.com/en/products/pumps/vs-flopro

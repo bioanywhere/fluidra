@@ -10,6 +10,7 @@ description = "KB ingestion: parse -> chunk -> embed -> index. MVP uses pgvector
 dependencies = [
     "numpy>=1.26",
     "pypdf>=4.2.0",
+    "pyyaml>=6.0",
     "shared-types",
     # pgvector store is the local/dev default (blueprint's small-scale fallback).
     "sqlalchemy>=2.0.30",

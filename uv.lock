@@ -901,6 +901,7 @@ dependencies = [
     { name = "pgvector" },
     { name = "psycopg2-binary" },
     { name = "pypdf" },
+    { name = "pyyaml" },
     { name = "shared-types" },
     { name = "sqlalchemy" },
 ]
@@ -922,6 +923,7 @@ requires-dist = [
     { name = "pgvector", specifier = ">=0.3.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pypdf", specifier = ">=4.2.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "shared-types", editable = "packages/shared-types" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]

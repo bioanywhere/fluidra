@@ -125,14 +125,23 @@ uv run pytest tests/safety/ -v
 ## Ingesting a manual (Milestone 3)
 
 ```bash
-# Offline (no DB): parse -> chunk -> embed (fake) -> in-memory store, report counts
+# One manual, offline (no DB): parse -> chunk -> embed (fake) -> in-memory store
 uv run python -m ingestion_worker.ingest data/manuals/aquapure_h0567500.md \
   --store inmemory --backend fake
 
+# The WHOLE corpus from the manifest (data/manuals/manifest.yaml):
+uv run python -m ingestion_worker.corpus --store inmemory --backend fake
+#   -> Ingested 4 manuals, 42 chunks ...
+
 # Into local pgvector (needs `make dev` Postgres — uses the pgvector/pgvector image):
-uv run python -m ingestion_worker.ingest data/manuals/aquapure_h0567500.md \
-  --store pgvector --backend auto
+uv run python -m ingestion_worker.corpus --store pgvector --backend auto
 ```
+
+The corpus (AquaPure salt system, Polaris Alpha iQ cleaner, Jandy JXi heater,
+VS FloPro pump) is declared in `data/manuals/manifest.yaml` — adding a manual is
+a data change, not a code change. Retrieval is hybrid (dense + exact keyword on
+fault codes), so a code query returns the right manual's section even across
+brands.
 
 Embeddings use Vertex AI `text-embedding-005` when ADC + the SDK are available
 (`--backend vertex`), else a deterministic fake fallback (`--backend fake`) so

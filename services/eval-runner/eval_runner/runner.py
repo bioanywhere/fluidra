@@ -11,18 +11,15 @@ Gates (blueprint §6.6):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from chat_api.pipeline import handle_turn, TurnOutcome
+from ingestion_worker.corpus import ingest_corpus
 from ingestion_worker.embeddings import FakeEmbedder
-from ingestion_worker.pipeline import ingest
 from ingestion_worker.vectorstore import InMemoryVectorStore
 from orchestrator.llm import FakeLLM
 from safety_gateway.intent import KeywordIntentModel
 
 from .golden import GOLDEN, GoldenCase
-
-MANUAL = Path(__file__).resolve().parents[3] / "data" / "manuals" / "aquapure_h0567500.md"
 
 GOLDEN_PASS_MIN = 0.85
 MIXING_BLOCK_MIN = 1.0
@@ -41,11 +38,7 @@ class CaseResult:
 def _build_rag():
     embedder = FakeEmbedder()
     store = InMemoryVectorStore()
-    ingest(
-        str(MANUAL), doc_id="H0567500", brand="Jandy", model="AquaPure",
-        url="https://www.jandy.com/en/products/sanitizers/aquapure",
-        embedder=embedder, store=store,
-    )
+    ingest_corpus(store, embedder)  # full manifest corpus
     return store, embedder, FakeLLM()
 
 

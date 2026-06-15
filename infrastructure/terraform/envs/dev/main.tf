@@ -74,10 +74,11 @@ locals {
 
   app_env = merge(local.base_env, local.vector_env)
 
+  # Ingest the whole manifest corpus; store backend follows the vector flag.
   ingest_args = var.enable_vertex_vector_search ? [
-    "data/manuals/aquapure_h0567500.md", "--store", "vertex", "--backend", "vertex"
+    "--store", "vertex", "--backend", "vertex"
     ] : [
-    "data/manuals/aquapure_h0567500.md", "--store", "pgvector", "--backend", "vertex"
+    "--store", "pgvector", "--backend", "vertex"
   ]
 
   db_secrets = {
@@ -172,7 +173,7 @@ module "ingestion_job" {
   image                 = local.ingestion_image
   service_account_email = module.worker_sa.email
   cloudsql_connection   = local.conn
-  command               = ["python", "-m", "ingestion_worker.ingest"]
+  command               = ["python", "-m", "ingestion_worker.corpus"]
   args                  = local.ingest_args
   env                   = local.app_env
   secrets               = local.db_secrets
