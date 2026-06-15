@@ -925,6 +925,7 @@ name = "ingestion-worker"
 version = "0.1.0"
 source = { editable = "services/ingestion-worker" }
 dependencies = [
+    { name = "google-cloud-aiplatform" },
     { name = "numpy" },
     { name = "pgvector" },
     { name = "psycopg2-binary" },
@@ -934,11 +935,6 @@ dependencies = [
     { name = "sqlalchemy" },
 ]
 
-[package.optional-dependencies]
-vertex = [
-    { name = "google-cloud-aiplatform" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -946,7 +942,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "google-cloud-aiplatform", marker = "extra == 'vertex'", specifier = ">=1.60.0" },
+    { name = "google-cloud-aiplatform", specifier = ">=1.60.0" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pgvector", specifier = ">=0.3.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
@@ -955,7 +951,6 @@ requires-dist = [
     { name = "shared-types", editable = "packages/shared-types" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
 ]
-provides-extras = ["vertex"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.2.0" }]
@@ -1432,6 +1427,7 @@ version = "0.1.0"
 source = { editable = "services/orchestrator" }
 dependencies = [
     { name = "fastapi" },
+    { name = "google-cloud-aiplatform" },
     { name = "ingestion-worker" },
     { name = "langgraph" },
     { name = "observability" },
@@ -1444,11 +1440,6 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
-[package.optional-dependencies]
-vertex = [
-    { name = "google-cloud-aiplatform" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
@@ -1459,7 +1450,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.111.0" },
-    { name = "google-cloud-aiplatform", marker = "extra == 'vertex'", specifier = ">=1.60.0" },
+    { name = "google-cloud-aiplatform", specifier = ">=1.60.0" },
     { name = "ingestion-worker", editable = "services/ingestion-worker" },
     { name = "langgraph", specifier = ">=0.2.0" },
     { name = "observability", editable = "packages/observability" },
@@ -1471,7 +1462,6 @@ requires-dist = [
     { name = "shared-types", editable = "packages/shared-types" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29.0" },
 ]
-provides-extras = ["vertex"]
 
 [package.metadata.requires-dev]
 dev = [

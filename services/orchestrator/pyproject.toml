@@ -18,12 +18,10 @@ dependencies = [
     "prompts",
     "ingestion-worker",
     "observability",
+    # Vertex SDK: real Gemini in cloud. Imported lazily so tests run offline with
+    # the fake LLM, but it must be present in the deployed image.
+    "google-cloud-aiplatform>=1.60.0",
 ]
-
-# Vertex SDK only needed for real Gemini calls; imported lazily so tests run
-# offline with the fake LLM.
-[project.optional-dependencies]
-vertex = ["google-cloud-aiplatform>=1.60.0"]
 
 [dependency-groups]
 dev = [
