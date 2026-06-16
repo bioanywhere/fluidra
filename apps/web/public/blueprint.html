@@ -9,14 +9,14 @@
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--fg);
       font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-    nav { position:sticky; top:0; z-index:10; background:#0f172a; color:#fff; padding:10px 16px;
+    nav.top { position:sticky; top:0; z-index:10; background:#0f172a; color:#fff; padding:10px 16px;
       display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    nav b { margin-right:auto; }
-    nav a { color:#fff; text-decoration:none; background:#1e293b; padding:6px 12px; border-radius:999px; font-size:14px; }
-    nav a:hover { background:var(--accent); }
+    nav.top b { margin-right:auto; }
+    nav.top a { color:#fff; text-decoration:none; background:#1e293b; padding:6px 12px; border-radius:999px; font-size:14px; }
+    nav.top a:hover { background:var(--accent); }
     main { max-width:900px; margin:0 auto; padding:24px 16px 80px; }
     .loading { color:var(--muted); padding:40px 0; }
-    h1,h2,h3 { line-height:1.25; }
+    h1,h2,h3 { line-height:1.25; scroll-margin-top:64px; }
     h1 { font-size:1.9rem; border-bottom:2px solid var(--border); padding-bottom:.3em; }
     h2 { font-size:1.45rem; margin-top:2em; border-bottom:1px solid var(--border); padding-bottom:.3em; }
     h3 { font-size:1.15rem; margin-top:1.5em; }
@@ -30,12 +30,20 @@
     th { background:#f1f5f9; }
     blockquote { border-left:4px solid var(--accent); margin:1em 0; padding:.4em 1em; background:#eff6ff; color:#1e3a8a; border-radius:0 8px 8px 0; }
     .mermaid { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin:1.2em 0; text-align:center; overflow-x:auto; }
+    .toc { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:0 0 28px; }
+    .toc-title { font-weight:700; margin-bottom:8px; }
+    .toc ul { list-style:none; margin:0; padding:0; columns:2; column-gap:28px; }
+    @media (max-width:640px){ .toc ul { columns:1; } }
+    .toc li { margin:3px 0; font-size:14px; break-inside:avoid; }
+    .toc li.lvl3 { padding-left:16px; font-size:13px; }
+    .toc a { color:var(--accent); text-decoration:none; }
+    .toc a:hover { text-decoration:underline; }
     img { max-width:100%; }
     @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
   </style>
 </head>
 <body>
-  <nav>
+  <nav class="top">
     <b>Fluidra Pool Assistant</b>
     <a href="/">💬 Chat</a>
     <a href="/requirements.html">📖 Requirement</a>
@@ -52,8 +60,10 @@
   <script>
     (async function () {
       const el = document.getElementById("content");
+      const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-      // 1) Fetch the markdown.
+      // 1) Fetch markdown.
       let md;
       try {
         const res = await fetch("/Fluidra_Implementation_Blueprint.md", { cache: "no-store" });
@@ -62,31 +72,53 @@
       } catch (e) {
         el.innerHTML = '<p class="loading">Could not fetch the blueprint (' +
           (e && e.message ? e.message : e) +
-          '). Raw source: <a href="/Fluidra_Implementation_Blueprint.md">Fluidra_Implementation_Blueprint.md</a></p>';
+          '). Raw: <a href="/Fluidra_Implementation_Blueprint.md">markdown</a></p>';
         return;
       }
 
-      // 2) Render the prose — this always succeeds and is never wiped by a
-      //    diagram error.
-      md = md.replace(/```mermaid\s*\n([\s\S]*?)```/g,
-        (_m, code) => `\n\n<div class="mermaid">\n${code.trim()}\n</div>\n\n`);
-      try {
-        el.innerHTML = (window.marked ? marked.parse(md) : null) ||
-          "<pre>" + md.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) + "</pre>";
-      } catch (_e) {
-        el.innerHTML = "<pre>" + md.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) + "</pre>";
+      // 2) Pull mermaid blocks OUT before marked runs (so marked never mangles
+      //    the diagram source), leaving a plain-text placeholder.
+      const diagrams = [];
+      md = md.replace(/```mermaid\s*\n([\s\S]*?)```/g, (_m, code) => {
+        diagrams.push(code.trim());
+        return `\n\nMERMAIDBLOCK${diagrams.length - 1}END\n\n`;
+      });
+
+      // 3) Render prose; then swap placeholders for escaped .mermaid divs.
+      let html;
+      try { html = marked.parse(md); }
+      catch (_e) { html = "<pre>" + esc(md) + "</pre>"; }
+      html = html.replace(/<p>\s*MERMAIDBLOCK(\d+)END\s*<\/p>/g,
+        (_m, i) => `<div class="mermaid">${esc(diagrams[i])}</div>`);
+      html = html.replace(/MERMAIDBLOCK(\d+)END/g,
+        (_m, i) => `<div class="mermaid">${esc(diagrams[i])}</div>`);
+      el.innerHTML = html;
+
+      // 4) Build a table of contents from h2/h3.
+      const heads = el.querySelectorAll("h2, h3");
+      if (heads.length) {
+        const seen = {};
+        const items = [];
+        heads.forEach((h) => {
+          let id = slug(h.textContent) || "section";
+          if (seen[id] != null) { seen[id]++; id = id + "-" + seen[id]; } else seen[id] = 0;
+          h.id = id;
+          items.push('<li class="' + (h.tagName === "H3" ? "lvl3" : "lvl2") +
+            '"><a href="#' + id + '">' + h.textContent + "</a></li>");
+        });
+        const toc = document.createElement("nav");
+        toc.className = "toc";
+        toc.innerHTML = '<div class="toc-title">Contents</div><ul>' + items.join("") + "</ul>";
+        el.insertBefore(toc, el.firstChild);
       }
 
-      // 3) Render diagrams best-effort — a bad diagram shows an inline error box
-      //    (suppressErrorRendering) but never breaks the document.
+      // 5) Render diagrams best-effort (never breaks the page).
       try {
         if (window.mermaid) {
           mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose", suppressErrorRendering: true });
           await mermaid.run({ querySelector: ".mermaid" });
         }
-      } catch (e) {
-        console.warn("mermaid render issue (prose unaffected):", e);
-      }
+      } catch (e) { console.warn("mermaid render issue (prose unaffected):", e); }
     })();
   </script>
 </body>
