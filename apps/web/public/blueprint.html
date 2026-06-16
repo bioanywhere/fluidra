@@ -29,25 +29,22 @@
     th,td { border:1px solid var(--border); padding:8px 10px; text-align:left; vertical-align:top; }
     th { background:#f1f5f9; }
     blockquote { border-left:4px solid var(--accent); margin:1em 0; padding:.4em 1em; background:#eff6ff; color:#1e3a8a; border-radius:0 8px 8px 0; }
-    .mermaid { position:relative; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin:1.2em 0; text-align:center; overflow-x:auto; }
-    .mermaid.zoomable { cursor:zoom-in; }
-    .mermaid svg { max-width:100%; height:auto; }
-    .zoom-btn { position:absolute; top:8px; right:8px; z-index:2; display:inline-flex; align-items:center; gap:5px;
-      background:rgba(15,23,42,.85); color:#fff; border:0; border-radius:8px; padding:5px 10px; font-size:12.5px;
-      cursor:pointer; opacity:0; transition:opacity .15s; }
-    .mermaid:hover .zoom-btn, .zoom-btn:focus-visible { opacity:1; }
-    .lb { position:fixed; inset:0; z-index:1000; display:none; background:rgba(15,23,42,.93); }
-    .lb.open { display:block; }
-    .lb-canvas { position:absolute; inset:0; overflow:hidden; cursor:grab; touch-action:none; }
-    .lb-canvas:active { cursor:grabbing; }
-    .lb-stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
-    .lb-stage svg { max-width:none !important; height:auto; display:block; }
-    .lb-bar { position:absolute; top:12px; right:12px; z-index:2; display:flex; gap:6px; }
-    .lb-bar button { width:40px; height:40px; border:0; border-radius:10px; background:rgba(255,255,255,.14); color:#fff;
-      font-size:18px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
-    .lb-bar button:hover { background:rgba(255,255,255,.28); }
-    .lb-hint { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:2; color:#cbd5e1;
-      font-size:12.5px; background:rgba(15,23,42,.6); padding:5px 12px; border-radius:999px; }
+    .mermaid { position:relative; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin:1.2em 0; text-align:center; overflow:hidden; }
+    .mz-vp { position:relative; overflow:hidden; touch-action:none; cursor:grab; }
+    .mz-vp:active { cursor:grabbing; }
+    .mz-pan { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+    .mz-pan svg { max-width:none !important; height:auto; display:block; }
+    .mz-tools { position:absolute; top:8px; right:8px; z-index:3; display:flex; gap:4px; opacity:0; transition:opacity .15s; }
+    .mermaid:hover .mz-tools, .mz-tools:focus-within, .mermaid.mz-fs .mz-tools { opacity:1; }
+    .mz-tools button { width:30px; height:30px; padding:0; border:1px solid var(--border); border-radius:7px; background:#fff;
+      color:var(--fg); font-size:15px; line-height:1; cursor:pointer; display:inline-flex; align-items:center;
+      justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+    .mz-tools button:hover { background:#f1f5f9; }
+    .mz-toast { position:absolute; top:10px; left:10px; z-index:3; background:var(--fg); color:#fff; font-size:12px;
+      padding:4px 9px; border-radius:6px; opacity:0; transition:opacity .15s; pointer-events:none; }
+    .mz-toast.show { opacity:1; }
+    .mermaid.mz-fs { position:fixed; inset:0; z-index:1000; margin:0; border:0; border-radius:0; padding:0; background:var(--card); }
+    .mermaid.mz-fs .mz-vp { width:100% !important; height:100% !important; }
     .toc { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:0 0 28px; }
     .toc-title { font-weight:700; margin-bottom:8px; }
     .toc ul { list-style:none; margin:0; padding:0; columns:2; column-gap:28px; }
@@ -130,7 +127,8 @@
         el.insertBefore(toc, el.firstChild);
       }
 
-      // 5) Render diagrams best-effort (never breaks the page).
+      // 5) Capture each diagram's source (for the "copy" action), then render best-effort.
+      el.querySelectorAll(".mermaid").forEach((d) => { d.dataset.src = (d.textContent || "").trim(); });
       try {
         if (window.mermaid) {
           mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose", suppressErrorRendering: true });
@@ -138,118 +136,105 @@
         }
       } catch (e) { console.warn("mermaid render issue (prose unaffected):", e); }
 
-      // 6) Make each rendered diagram openable in a full-screen zoom/pan viewer.
+      // 6) GitHub-style in-place zoom/pan: each diagram stays in its light
+      //    card with a hover toolbar (zoom out/in, reset, copy, fullscreen).
+      //    No dark overlay — the background stays consistent while zooming.
       (function enableDiagramZoom() {
-        const diagrams = [...el.querySelectorAll(".mermaid")].filter((d) => d.querySelector("svg"));
-        if (!diagrams.length) return;
+        const blocks = [...el.querySelectorAll(".mermaid")].filter((d) => d.querySelector("svg"));
+        if (!blocks.length) return;
+        const controllers = [];
 
-        const lb = document.createElement("div");
-        lb.className = "lb";
-        lb.setAttribute("role", "dialog");
-        lb.setAttribute("aria-modal", "true");
-        lb.setAttribute("aria-label", "Diagram viewer");
-        lb.innerHTML =
-          '<div class="lb-canvas"><div class="lb-stage"></div></div>' +
-          '<div class="lb-bar">' +
-            '<button type="button" data-act="out" aria-label="Zoom out">−</button>' +
-            '<button type="button" data-act="in" aria-label="Zoom in">+</button>' +
-            '<button type="button" data-act="fit" aria-label="Fit to screen">⤢</button>' +
-            '<button type="button" data-act="close" aria-label="Close viewer">✕</button>' +
-          '</div>' +
-          '<div class="lb-hint">Scroll to zoom · drag to pan · Esc to close</div>';
-        document.body.appendChild(lb);
-        const canvas = lb.querySelector(".lb-canvas");
-        const stage = lb.querySelector(".lb-stage");
-
-        let scale = 1, tx = 0, ty = 0, lastFocus = null;
-        const MIN = 0.1, MAX = 16;
-        const apply = () => { stage.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
-
-        function fit() {
-          const svg = stage.querySelector("svg");
-          if (!svg) return;
+        blocks.forEach((d) => {
+          const svg = d.querySelector("svg");
           const vb = svg.viewBox && svg.viewBox.baseVal;
-          const w = (vb && vb.width) || svg.getBoundingClientRect().width || 800;
-          const h = (vb && vb.height) || svg.getBoundingClientRect().height || 600;
-          svg.style.width = w + "px"; svg.style.height = h + "px";
-          const cw = canvas.clientWidth, ch = canvas.clientHeight;
-          scale = Math.min(cw / w, ch / h) * 0.92;
-          tx = (cw - w * scale) / 2;
-          ty = (ch - h * scale) / 2;
-          apply();
-        }
-        function zoomAt(cx, cy, factor) {
-          const ns = Math.min(MAX, Math.max(MIN, scale * factor));
-          tx = cx - (cx - tx) * (ns / scale);
-          ty = cy - (cy - ty) * (ns / scale);
-          scale = ns; apply();
-        }
-        function open(srcSvg) {
-          if (!srcSvg) return;
-          lastFocus = document.activeElement;
-          stage.innerHTML = "";
-          const clone = srcSvg.cloneNode(true);
-          clone.removeAttribute("style"); clone.removeAttribute("width"); clone.removeAttribute("height");
-          stage.appendChild(clone);
-          lb.classList.add("open");
-          document.body.style.overflow = "hidden";
-          fit();
-          lb.querySelector('[data-act="close"]').focus();
-        }
-        function close() {
-          lb.classList.remove("open");
-          document.body.style.overflow = "";
-          stage.innerHTML = "";
-          if (lastFocus && lastFocus.focus) lastFocus.focus();
-        }
+          const baseW = (vb && vb.width) || svg.getBoundingClientRect().width || 800;
+          const baseH = (vb && vb.height) || svg.getBoundingClientRect().height || 600;
+          svg.style.maxWidth = "none"; svg.style.width = baseW + "px"; svg.style.height = baseH + "px";
 
-        diagrams.forEach((d) => {
-          d.classList.add("zoomable");
-          const btn = document.createElement("button");
-          btn.type = "button"; btn.className = "zoom-btn";
-          btn.innerHTML = "⤢ Zoom";
-          btn.setAttribute("aria-label", "Open diagram full screen");
-          btn.addEventListener("click", (e) => { e.stopPropagation(); open(d.querySelector("svg")); });
-          d.appendChild(btn);
-          d.addEventListener("click", () => open(d.querySelector("svg")));
-        });
+          const vp = document.createElement("div"); vp.className = "mz-vp";
+          const pan = document.createElement("div"); pan.className = "mz-pan";
+          pan.appendChild(svg); vp.appendChild(pan); d.insertBefore(vp, d.firstChild);
 
-        lb.querySelector(".lb-bar").addEventListener("click", (e) => {
-          const act = e.target.getAttribute && e.target.getAttribute("data-act");
-          if (!act) return;
-          const cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2;
-          if (act === "in") zoomAt(cx, cy, 1.25);
-          else if (act === "out") zoomAt(cx, cy, 0.8);
-          else if (act === "fit") fit();
-          else if (act === "close") close();
-        });
-        canvas.addEventListener("wheel", (e) => {
-          e.preventDefault();
-          const r = canvas.getBoundingClientRect();
-          zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
-        }, { passive: false });
+          const tools = document.createElement("div"); tools.className = "mz-tools";
+          tools.innerHTML =
+            '<button type="button" data-act="out"   title="Zoom out"    aria-label="Zoom out">−</button>' +
+            '<button type="button" data-act="in"    title="Zoom in"     aria-label="Zoom in">+</button>' +
+            '<button type="button" data-act="reset" title="Reset zoom"  aria-label="Reset zoom">⟲</button>' +
+            '<button type="button" data-act="copy"  title="Copy source" aria-label="Copy diagram source">⧉</button>' +
+            '<button type="button" data-act="fs"    title="Fullscreen"  aria-label="Toggle fullscreen">⛶</button>';
+          d.appendChild(tools);
+          const toast = document.createElement("div"); toast.className = "mz-toast"; d.appendChild(toast);
 
-        let dragging = false, moved = false, sx = 0, sy = 0;
-        canvas.addEventListener("pointerdown", (e) => {
-          dragging = true; moved = false; sx = e.clientX; sy = e.clientY;
-          canvas.setPointerCapture(e.pointerId);
+          let scale = 1, fit = 1, tx = 0, ty = 0;
+          const isFs = () => d.classList.contains("mz-fs");
+          const apply = () => { pan.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
+          function clampPan() {
+            const vw = vp.clientWidth, vh = vp.clientHeight, sw = baseW * scale, sh = baseH * scale;
+            tx = sw <= vw ? (vw - sw) / 2 : Math.min(0, Math.max(vw - sw, tx));
+            ty = sh <= vh ? (vh - sh) / 2 : Math.min(0, Math.max(vh - sh, ty));
+          }
+          function refit(reset) {
+            if (isFs()) { vp.style.height = ""; }
+            else { const vw0 = vp.clientWidth || baseW; fit = Math.min(1, vw0 / baseW); vp.style.height = baseH * fit + "px"; }
+            const vw = vp.clientWidth || baseW, vh = vp.clientHeight || baseH * fit;
+            if (isFs()) fit = Math.min(vw / baseW, vh / baseH);
+            if (reset || scale < fit) scale = fit;
+            clampPan(); apply();
+          }
+          function zoomAt(cx, cy, f) {
+            const ns = Math.max(fit, Math.min(fit * 12, scale * f));
+            tx = cx - (cx - tx) * (ns / scale); ty = cy - (cy - ty) * (ns / scale);
+            scale = ns; clampPan(); apply();
+          }
+          function toggleFs() {
+            const entering = !isFs();
+            d.classList.toggle("mz-fs", entering);
+            document.body.style.overflow = entering ? "hidden" : "";
+            refit(true);
+          }
+          function showToast(t) {
+            toast.textContent = t; toast.classList.add("show");
+            clearTimeout(toast._t); toast._t = setTimeout(() => toast.classList.remove("show"), 1200);
+          }
+          async function copySrc() {
+            try { await navigator.clipboard.writeText(d.dataset.src || ""); showToast("Source copied"); }
+            catch (_e) { showToast("Copy failed"); }
+          }
+
+          tools.addEventListener("click", (e) => {
+            const b = e.target.closest("button"); if (!b) return;
+            const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2, a = b.dataset.act;
+            if (a === "in") zoomAt(cx, cy, 1.25);
+            else if (a === "out") zoomAt(cx, cy, 0.8);
+            else if (a === "reset") refit(true);
+            else if (a === "copy") copySrc();
+            else if (a === "fs") toggleFs();
+          });
+          vp.addEventListener("wheel", (e) => {
+            if (!isFs() && !e.ctrlKey && !e.metaKey) return;   // let the page scroll otherwise
+            e.preventDefault();
+            const r = vp.getBoundingClientRect();
+            zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+          }, { passive: false });
+          let drag = false, sx = 0, sy = 0;
+          vp.addEventListener("pointerdown", (e) => { drag = true; sx = e.clientX; sy = e.clientY; vp.setPointerCapture(e.pointerId); });
+          vp.addEventListener("pointermove", (e) => { if (!drag) return; tx += e.clientX - sx; ty += e.clientY - sy; sx = e.clientX; sy = e.clientY; clampPan(); apply(); });
+          vp.addEventListener("pointerup", () => { drag = false; });
+
+          refit(true);
+          controllers.push({ vp, isFs, zoomAt, refit, toggleFs });
         });
-        canvas.addEventListener("pointermove", (e) => {
-          if (!dragging) return;
-          tx += e.clientX - sx; ty += e.clientY - sy; sx = e.clientX; sy = e.clientY; moved = true; apply();
-        });
-        canvas.addEventListener("pointerup", () => { dragging = false; });
-        canvas.addEventListener("click", (e) => { if (e.target === canvas && !moved) close(); });
 
         document.addEventListener("keydown", (e) => {
-          if (!lb.classList.contains("open")) return;
-          const cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2;
-          if (e.key === "Escape") close();
-          else if (e.key === "+" || e.key === "=") zoomAt(cx, cy, 1.25);
-          else if (e.key === "-") zoomAt(cx, cy, 0.8);
-          else if (e.key === "0") fit();
+          const c = controllers.find((c) => c.isFs());
+          if (!c) return;                                    // only act when a diagram is fullscreen
+          const cx = c.vp.clientWidth / 2, cy = c.vp.clientHeight / 2;
+          if (e.key === "Escape") c.toggleFs();
+          else if (e.key === "+" || e.key === "=") { e.preventDefault(); c.zoomAt(cx, cy, 1.25); }
+          else if (e.key === "-") { e.preventDefault(); c.zoomAt(cx, cy, 0.8); }
+          else if (e.key === "0") { e.preventDefault(); c.refit(true); }
         });
-        window.addEventListener("resize", () => { if (lb.classList.contains("open")) fit(); });
+        window.addEventListener("resize", () => controllers.forEach((c) => c.refit(true)));
       })();
     })();
   </script>
