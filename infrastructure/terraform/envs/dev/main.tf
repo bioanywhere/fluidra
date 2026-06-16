@@ -157,7 +157,7 @@ module "chat_api" {
   image                 = local.chat_api_image
   service_account_email = module.chat_api_sa.email
   cloudsql_connection   = local.conn
-  min_instances         = 0
+  min_instances         = 1 # keep warm: avoids cold-start latency/timeouts in the demo
   max_instances         = 10
   allow_unauthenticated = var.allow_unauthenticated
   env                   = local.app_env

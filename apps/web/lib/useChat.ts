@@ -7,9 +7,13 @@ import { postChat } from "./api";
 import type { ChatMessage } from "./types";
 
 function uid(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
+  // crypto.randomUUID() only exists in a secure context (HTTPS/localhost); the
+  // hosted demo is plain HTTP, so generate an RFC-4122 v4 UUID ourselves.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function useChat() {

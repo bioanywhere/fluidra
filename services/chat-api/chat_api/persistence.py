@@ -20,6 +20,19 @@ from .database import async_session_maker
 from .pipeline import TurnOutcome
 
 
+_UUID_NS = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+
+def _coerce_uuid(value: str) -> str:
+    """Return a valid UUID string. If `value` isn't a UUID (e.g. a client on
+    plain HTTP without crypto.randomUUID), map it deterministically so the same
+    conversation keeps one id — and the DB CAST never errors."""
+    try:
+        return str(uuid.UUID(str(value)))
+    except (ValueError, AttributeError, TypeError):
+        return str(uuid.uuid5(_UUID_NS, str(value)))
+
+
 class PersistencePort(Protocol):
     async def load_memory(self, conversation_id: str, limit: int) -> list[dict]: ...
     async def record_turn(
@@ -36,6 +49,7 @@ class PersistencePort(Protocol):
 
 class DbPersistence:
     async def load_memory(self, conversation_id: str, limit: int) -> list[dict]:
+        conversation_id = _coerce_uuid(conversation_id)
         async with async_session_maker() as s:
             rows = (
                 await s.execute(
@@ -63,6 +77,7 @@ class DbPersistence:
         latency_ms: int,
         cost_usd: float,
     ) -> None:
+        conversation_id = _coerce_uuid(conversation_id)
         async with async_session_maker() as s:
             async with s.begin():
                 user_id = (
