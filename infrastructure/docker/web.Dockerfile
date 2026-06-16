@@ -10,6 +10,10 @@ FROM node:20-slim AS build
 RUN corepack enable
 WORKDIR /app
 COPY . .
+# Publish the canonical docs (single source at the repo root) via the web app's
+# public/ dir, so they're served behind the LB and never drift.
+RUN cp Fluidra_Implementation_Blueprint.md apps/web/public/Fluidra_Implementation_Blueprint.md \
+    && cp index.html apps/web/public/requirements.html
 # root .npmrc has shamefully-hoist=true so `next` resolves in the container.
 RUN pnpm install --frozen-lockfile
 ARG NEXT_PUBLIC_API_BASE_URL=""
