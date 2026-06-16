@@ -1,0 +1,30 @@
+# Effective .dockerignore for root-context builds (python.Dockerfile, web.Dockerfile).
+# Docker only reads .dockerignore from the build-context root, so it must live here.
+# Excluding host node_modules/.venv is critical: their symlinks/binaries are
+# host-specific and break the in-container install/build.
+.git
+.github
+**/node_modules
+node_modules
+**/.venv
+.venv
+**/.next
+**/.turbo
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.tsbuildinfo
+infrastructure/terraform
+**/.terraform
+documentation
+*.mp4
+*.m4a
+.vs
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan
+.env
+**/.env

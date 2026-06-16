@@ -1,8 +1,10 @@
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from observability import init_tracing, setup_logging
@@ -39,6 +41,15 @@ app = FastAPI(
     title="Fluidra Pool Assistant — chat-api",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS so the web app (local dev or any origin) can call the API from a browser.
+# CORS_ALLOW_ORIGINS is a comma-separated list; default "*" for dev.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

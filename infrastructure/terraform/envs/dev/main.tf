@@ -45,6 +45,7 @@ locals {
   chat_api_image    = "${module.registry.repository_path}/chat-api:${var.image_tag}"
   ingestion_image   = "${module.registry.repository_path}/ingestion-worker:${var.image_tag}"
   eval_runner_image = "${module.registry.repository_path}/eval-runner:${var.image_tag}"
+  web_image         = "${module.registry.repository_path}/web:${var.image_tag}"
 
   base_env = {
     ENV                   = "dev"
@@ -209,11 +210,33 @@ module "monitoring" {
   depends_on            = [module.services]
 }
 
-module "loadbalancer" {
-  count        = var.enable_load_balancer ? 1 : 0
-  source       = "../../modules/loadbalancer"
+module "web_sa" {
+  source       = "../../modules/iam"
   project_id   = var.project_id
-  region       = var.region
-  service_name = "chat-api"
-  depends_on   = [module.chat_api, module.services]
+  account_id   = "web"
+  display_name = "web (Next.js) runtime"
+  roles        = ["roles/logging.logWriter", "roles/monitoring.metricWriter"]
+}
+
+module "web" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  name                  = "web"
+  region                = var.region
+  image                 = local.web_image
+  service_account_email = module.web_sa.email
+  min_instances         = 0
+  max_instances         = 5
+  allow_unauthenticated = var.allow_unauthenticated
+  env                   = { ENV = "dev" }
+}
+
+module "loadbalancer" {
+  count            = var.enable_load_balancer ? 1 : 0
+  source           = "../../modules/loadbalancer"
+  project_id       = var.project_id
+  region           = var.region
+  api_service_name = "chat-api"
+  web_service_name = "web"
+  depends_on       = [module.chat_api, module.web, module.services]
 }
