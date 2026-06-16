@@ -29,7 +29,25 @@
     th,td { border:1px solid var(--border); padding:8px 10px; text-align:left; vertical-align:top; }
     th { background:#f1f5f9; }
     blockquote { border-left:4px solid var(--accent); margin:1em 0; padding:.4em 1em; background:#eff6ff; color:#1e3a8a; border-radius:0 8px 8px 0; }
-    .mermaid { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin:1.2em 0; text-align:center; overflow-x:auto; }
+    .mermaid { position:relative; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin:1.2em 0; text-align:center; overflow-x:auto; }
+    .mermaid.zoomable { cursor:zoom-in; }
+    .mermaid svg { max-width:100%; height:auto; }
+    .zoom-btn { position:absolute; top:8px; right:8px; z-index:2; display:inline-flex; align-items:center; gap:5px;
+      background:rgba(15,23,42,.85); color:#fff; border:0; border-radius:8px; padding:5px 10px; font-size:12.5px;
+      cursor:pointer; opacity:0; transition:opacity .15s; }
+    .mermaid:hover .zoom-btn, .zoom-btn:focus-visible { opacity:1; }
+    .lb { position:fixed; inset:0; z-index:1000; display:none; background:rgba(15,23,42,.93); }
+    .lb.open { display:block; }
+    .lb-canvas { position:absolute; inset:0; overflow:hidden; cursor:grab; touch-action:none; }
+    .lb-canvas:active { cursor:grabbing; }
+    .lb-stage { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+    .lb-stage svg { max-width:none !important; height:auto; display:block; }
+    .lb-bar { position:absolute; top:12px; right:12px; z-index:2; display:flex; gap:6px; }
+    .lb-bar button { width:40px; height:40px; border:0; border-radius:10px; background:rgba(255,255,255,.14); color:#fff;
+      font-size:18px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+    .lb-bar button:hover { background:rgba(255,255,255,.28); }
+    .lb-hint { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:2; color:#cbd5e1;
+      font-size:12.5px; background:rgba(15,23,42,.6); padding:5px 12px; border-radius:999px; }
     .toc { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:0 0 28px; }
     .toc-title { font-weight:700; margin-bottom:8px; }
     .toc ul { list-style:none; margin:0; padding:0; columns:2; column-gap:28px; }
@@ -119,6 +137,120 @@
           await mermaid.run({ querySelector: ".mermaid" });
         }
       } catch (e) { console.warn("mermaid render issue (prose unaffected):", e); }
+
+      // 6) Make each rendered diagram openable in a full-screen zoom/pan viewer.
+      (function enableDiagramZoom() {
+        const diagrams = [...el.querySelectorAll(".mermaid")].filter((d) => d.querySelector("svg"));
+        if (!diagrams.length) return;
+
+        const lb = document.createElement("div");
+        lb.className = "lb";
+        lb.setAttribute("role", "dialog");
+        lb.setAttribute("aria-modal", "true");
+        lb.setAttribute("aria-label", "Diagram viewer");
+        lb.innerHTML =
+          '<div class="lb-canvas"><div class="lb-stage"></div></div>' +
+          '<div class="lb-bar">' +
+            '<button type="button" data-act="out" aria-label="Zoom out">−</button>' +
+            '<button type="button" data-act="in" aria-label="Zoom in">+</button>' +
+            '<button type="button" data-act="fit" aria-label="Fit to screen">⤢</button>' +
+            '<button type="button" data-act="close" aria-label="Close viewer">✕</button>' +
+          '</div>' +
+          '<div class="lb-hint">Scroll to zoom · drag to pan · Esc to close</div>';
+        document.body.appendChild(lb);
+        const canvas = lb.querySelector(".lb-canvas");
+        const stage = lb.querySelector(".lb-stage");
+
+        let scale = 1, tx = 0, ty = 0, lastFocus = null;
+        const MIN = 0.1, MAX = 16;
+        const apply = () => { stage.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
+
+        function fit() {
+          const svg = stage.querySelector("svg");
+          if (!svg) return;
+          const vb = svg.viewBox && svg.viewBox.baseVal;
+          const w = (vb && vb.width) || svg.getBoundingClientRect().width || 800;
+          const h = (vb && vb.height) || svg.getBoundingClientRect().height || 600;
+          svg.style.width = w + "px"; svg.style.height = h + "px";
+          const cw = canvas.clientWidth, ch = canvas.clientHeight;
+          scale = Math.min(cw / w, ch / h) * 0.92;
+          tx = (cw - w * scale) / 2;
+          ty = (ch - h * scale) / 2;
+          apply();
+        }
+        function zoomAt(cx, cy, factor) {
+          const ns = Math.min(MAX, Math.max(MIN, scale * factor));
+          tx = cx - (cx - tx) * (ns / scale);
+          ty = cy - (cy - ty) * (ns / scale);
+          scale = ns; apply();
+        }
+        function open(srcSvg) {
+          if (!srcSvg) return;
+          lastFocus = document.activeElement;
+          stage.innerHTML = "";
+          const clone = srcSvg.cloneNode(true);
+          clone.removeAttribute("style"); clone.removeAttribute("width"); clone.removeAttribute("height");
+          stage.appendChild(clone);
+          lb.classList.add("open");
+          document.body.style.overflow = "hidden";
+          fit();
+          lb.querySelector('[data-act="close"]').focus();
+        }
+        function close() {
+          lb.classList.remove("open");
+          document.body.style.overflow = "";
+          stage.innerHTML = "";
+          if (lastFocus && lastFocus.focus) lastFocus.focus();
+        }
+
+        diagrams.forEach((d) => {
+          d.classList.add("zoomable");
+          const btn = document.createElement("button");
+          btn.type = "button"; btn.className = "zoom-btn";
+          btn.innerHTML = "⤢ Zoom";
+          btn.setAttribute("aria-label", "Open diagram full screen");
+          btn.addEventListener("click", (e) => { e.stopPropagation(); open(d.querySelector("svg")); });
+          d.appendChild(btn);
+          d.addEventListener("click", () => open(d.querySelector("svg")));
+        });
+
+        lb.querySelector(".lb-bar").addEventListener("click", (e) => {
+          const act = e.target.getAttribute && e.target.getAttribute("data-act");
+          if (!act) return;
+          const cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2;
+          if (act === "in") zoomAt(cx, cy, 1.25);
+          else if (act === "out") zoomAt(cx, cy, 0.8);
+          else if (act === "fit") fit();
+          else if (act === "close") close();
+        });
+        canvas.addEventListener("wheel", (e) => {
+          e.preventDefault();
+          const r = canvas.getBoundingClientRect();
+          zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+        }, { passive: false });
+
+        let dragging = false, moved = false, sx = 0, sy = 0;
+        canvas.addEventListener("pointerdown", (e) => {
+          dragging = true; moved = false; sx = e.clientX; sy = e.clientY;
+          canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener("pointermove", (e) => {
+          if (!dragging) return;
+          tx += e.clientX - sx; ty += e.clientY - sy; sx = e.clientX; sy = e.clientY; moved = true; apply();
+        });
+        canvas.addEventListener("pointerup", () => { dragging = false; });
+        canvas.addEventListener("click", (e) => { if (e.target === canvas && !moved) close(); });
+
+        document.addEventListener("keydown", (e) => {
+          if (!lb.classList.contains("open")) return;
+          const cx = canvas.clientWidth / 2, cy = canvas.clientHeight / 2;
+          if (e.key === "Escape") close();
+          else if (e.key === "+" || e.key === "=") zoomAt(cx, cy, 1.25);
+          else if (e.key === "-") zoomAt(cx, cy, 0.8);
+          else if (e.key === "0") fit();
+        });
+        window.addEventListener("resize", () => { if (lb.classList.contains("open")) fit(); });
+      })();
     })();
   </script>
 </body>
