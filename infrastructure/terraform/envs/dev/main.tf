@@ -213,7 +213,7 @@ module "monitoring" {
 module "web_sa" {
   source       = "../../modules/iam"
   project_id   = var.project_id
-  account_id   = "web"
+  account_id   = "web-runtime"
   display_name = "web (Next.js) runtime"
   roles        = ["roles/logging.logWriter", "roles/monitoring.metricWriter"]
 }
