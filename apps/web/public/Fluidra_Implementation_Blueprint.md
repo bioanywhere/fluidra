@@ -71,7 +71,7 @@ flowchart TB
     api -->|"secret refs at boot"| sec
     jobIngest --> emb
     jobIngest --> sql
-    run -. images .- ar
+    run -.->|images| ar
     api --> logs --> mon
 ```
 

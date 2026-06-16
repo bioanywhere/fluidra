@@ -52,19 +52,40 @@
   <script>
     (async function () {
       const el = document.getElementById("content");
+
+      // 1) Fetch the markdown.
+      let md;
       try {
         const res = await fetch("/Fluidra_Implementation_Blueprint.md", { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
-        let md = await res.text();
-        // Convert ```mermaid fences to <div class="mermaid"> so Mermaid renders them.
-        md = md.replace(/```mermaid\s*\n([\s\S]*?)```/g,
-          (_m, code) => `\n\n<div class="mermaid">\n${code.trim()}\n</div>\n\n`);
-        el.innerHTML = marked.parse(md);
-        mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
-        await mermaid.run({ querySelector: ".mermaid" });
+        md = await res.text();
       } catch (e) {
-        el.innerHTML = '<p class="loading">Could not load the blueprint (' + e +
+        el.innerHTML = '<p class="loading">Could not fetch the blueprint (' +
+          (e && e.message ? e.message : e) +
           '). Raw source: <a href="/Fluidra_Implementation_Blueprint.md">Fluidra_Implementation_Blueprint.md</a></p>';
+        return;
+      }
+
+      // 2) Render the prose — this always succeeds and is never wiped by a
+      //    diagram error.
+      md = md.replace(/```mermaid\s*\n([\s\S]*?)```/g,
+        (_m, code) => `\n\n<div class="mermaid">\n${code.trim()}\n</div>\n\n`);
+      try {
+        el.innerHTML = (window.marked ? marked.parse(md) : null) ||
+          "<pre>" + md.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) + "</pre>";
+      } catch (_e) {
+        el.innerHTML = "<pre>" + md.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) + "</pre>";
+      }
+
+      // 3) Render diagrams best-effort — a bad diagram shows an inline error box
+      //    (suppressErrorRendering) but never breaks the document.
+      try {
+        if (window.mermaid) {
+          mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose", suppressErrorRendering: true });
+          await mermaid.run({ querySelector: ".mermaid" });
+        }
+      } catch (e) {
+        console.warn("mermaid render issue (prose unaffected):", e);
       }
     })();
   </script>
