@@ -36,5 +36,9 @@ class Settings(BaseSettings):
     kill_switch_flag: str = "assistant_enabled"
     max_turns_memory: int = 10
 
+    # Admin (corpus administration). Empty => admin endpoints are disabled
+    # (fail-closed). Set ADMIN_TOKEN on the service to enable the /admin page.
+    admin_token: str = ""
+
 
 settings = Settings()

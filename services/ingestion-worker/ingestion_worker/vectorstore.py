@@ -33,6 +33,9 @@ class VectorStore(Protocol):
         self, vector: list[float], top_k: int, filters: dict | None = None
     ) -> list[tuple[Chunk, float]]: ...
     def count(self) -> int: ...
+    # Corpus administration (blueprint §8): list distinct documents and remove one.
+    def list_documents(self) -> list[dict]: ...
+    def delete_document(self, doc_id: str) -> int: ...
 
 
 def _matches(chunk: Chunk, filters: dict | None) -> bool:
@@ -95,6 +98,23 @@ class InMemoryVectorStore:
 
     def count(self) -> int:
         return len(self._chunks)
+
+    def list_documents(self) -> list[dict]:
+        docs: dict[str, dict] = {}
+        for c in self._chunks.values():
+            d = docs.setdefault(
+                c.doc_id,
+                {"doc_id": c.doc_id, "brand": c.brand, "model": c.model,
+                 "url": c.url, "locale": c.locale, "chunks": 0},
+            )
+            d["chunks"] += 1
+        return sorted(docs.values(), key=lambda d: d["doc_id"])
+
+    def delete_document(self, doc_id: str) -> int:
+        ids = [cid for cid, c in self._chunks.items() if c.doc_id == doc_id]
+        for cid in ids:
+            del self._chunks[cid]
+        return len(ids)
 
 
 class PgVectorStore:
@@ -244,6 +264,38 @@ class PgVectorStore:
 
         with self._engine.connect() as conn:
             return int(conn.execute(text(f"SELECT COUNT(*) FROM {self._table}")).scalar())
+
+    def list_documents(self) -> list[dict]:
+        from sqlalchemy import text
+
+        sql = text(
+            f"""
+            SELECT doc_id,
+                   MAX(brand)  AS brand,
+                   MAX(model)  AS model,
+                   MAX(url)    AS url,
+                   MAX(locale) AS locale,
+                   COUNT(*)    AS chunks
+            FROM {self._table}
+            GROUP BY doc_id
+            ORDER BY doc_id
+            """
+        )
+        with self._engine.connect() as conn:
+            return [
+                {"doc_id": r.doc_id, "brand": r.brand, "model": r.model,
+                 "url": r.url, "locale": r.locale, "chunks": int(r.chunks)}
+                for r in conn.execute(sql)
+            ]
+
+    def delete_document(self, doc_id: str) -> int:
+        from sqlalchemy import text
+
+        with self._engine.begin() as conn:
+            res = conn.execute(
+                text(f"DELETE FROM {self._table} WHERE doc_id = :d"), {"d": doc_id}
+            )
+            return int(res.rowcount or 0)
 
 
 # ── Backend selection (config-only swap; blueprint: pgvector -> Vertex) ───────

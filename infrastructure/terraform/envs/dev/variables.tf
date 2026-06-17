@@ -54,3 +54,10 @@ variable "enable_load_balancer" {
   default     = false
   description = "Front chat-api with an external HTTP Application Load Balancer (public IP). Needed when the org disables default run.app URLs."
 }
+
+variable "admin_token" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Bearer token for the corpus admin API (/v1/admin/*) and the /admin page. Empty disables admin (fail-closed)."
+}

@@ -12,6 +12,7 @@ from shared_types import ChatRequest, ChatResponse
 from safety_gateway.intent import KeywordIntentModel
 from safety_policy import redact
 
+from .admin import router as admin_router
 from .auth import get_current_user
 from .config import settings
 from .database import engine
@@ -51,6 +52,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Corpus administration (token-gated /v1/admin/*; blueprint §8).
+app.include_router(admin_router)
 
 
 @app.get("/healthz", tags=["ops"])

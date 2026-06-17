@@ -25,6 +25,8 @@ class ChunkDocStore(Protocol):
     def put(self, chunks: list[Chunk]) -> None: ...
     def get(self, ids: list[str]) -> list[Chunk]: ...
     def count(self) -> int: ...
+    def list_documents(self) -> list[dict]: ...
+    def delete_document(self, doc_id: str) -> list[str]: ...
 
 
 class InMemoryDocStore:
@@ -40,6 +42,23 @@ class InMemoryDocStore:
 
     def count(self) -> int:
         return len(self._d)
+
+    def list_documents(self) -> list[dict]:
+        docs: dict[str, dict] = {}
+        for c in self._d.values():
+            d = docs.setdefault(
+                c.doc_id,
+                {"doc_id": c.doc_id, "brand": c.brand, "model": c.model,
+                 "url": c.url, "locale": c.locale, "chunks": 0},
+            )
+            d["chunks"] += 1
+        return sorted(docs.values(), key=lambda d: d["doc_id"])
+
+    def delete_document(self, doc_id: str) -> list[str]:
+        ids = [cid for cid, c in self._d.items() if c.doc_id == doc_id]
+        for cid in ids:
+            del self._d[cid]
+        return ids
 
 
 class PostgresDocStore:
@@ -125,6 +144,40 @@ class PostgresDocStore:
 
         with self._engine.connect() as conn:
             return int(conn.execute(text(f"SELECT COUNT(*) FROM {self._table}")).scalar())
+
+    def list_documents(self) -> list[dict]:
+        from sqlalchemy import text
+
+        sql = text(
+            f"""
+            SELECT doc_id, MAX(brand) AS brand, MAX(model) AS model,
+                   MAX(url) AS url, MAX(locale) AS locale, COUNT(*) AS chunks
+            FROM {self._table} GROUP BY doc_id ORDER BY doc_id
+            """
+        )
+        with self._engine.connect() as conn:
+            return [
+                {"doc_id": r.doc_id, "brand": r.brand, "model": r.model,
+                 "url": r.url, "locale": r.locale, "chunks": int(r.chunks)}
+                for r in conn.execute(sql)
+            ]
+
+    def delete_document(self, doc_id: str) -> list[str]:
+        from sqlalchemy import text
+
+        with self._engine.begin() as conn:
+            ids = [
+                row[0]
+                for row in conn.execute(
+                    text(f"SELECT chunk_id FROM {self._table} WHERE doc_id = :d"),
+                    {"d": doc_id},
+                )
+            ]
+            if ids:
+                conn.execute(
+                    text(f"DELETE FROM {self._table} WHERE doc_id = :d"), {"d": doc_id}
+                )
+            return ids
 
 
 # ── Distance -> similarity (higher = better, to match retrieval's dense score) ─
@@ -232,3 +285,12 @@ class VertexVectorSearchStore:
 
     def count(self) -> int:
         return self._docs.count()
+
+    def list_documents(self) -> list[dict]:
+        return self._docs.list_documents()
+
+    def delete_document(self, doc_id: str) -> int:
+        ids = self._docs.delete_document(doc_id)
+        if ids:
+            self._index.remove_datapoints(datapoint_ids=ids)
+        return len(ids)

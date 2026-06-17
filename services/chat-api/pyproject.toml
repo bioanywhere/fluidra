@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",
+    "python-multipart>=0.0.9",
     "sqlalchemy[asyncio]>=2.0.30",
     "alembic>=1.13.0",
     "asyncpg>=0.29.0",

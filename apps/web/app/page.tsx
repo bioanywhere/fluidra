@@ -12,6 +12,7 @@ export default function Home() {
           <a href="/requirements.html" className="rounded-full border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50">📖 Requirement</a>
           <a href="/blueprint.html" className="rounded-full border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50">📘 Blueprint</a>
           <a href="/docs" className="rounded-full border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50">🧪 API</a>
+          <a href="/admin" className="rounded-full border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50">🔐 Admin</a>
         </nav>
       </header>
       <Chat />

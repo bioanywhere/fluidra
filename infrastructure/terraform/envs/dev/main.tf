@@ -59,6 +59,9 @@ locals {
     SAFETY_POLICY_VERSION = "2025.06.0"
     MAX_TURNS_MEMORY      = "10"
     DB_NAME               = var.db_name
+    # Corpus admin token. Empty => /v1/admin/* is disabled (fail-closed). Set
+    # admin_token in terraform.tfvars to enable the /admin page durably.
+    ADMIN_TOKEN = var.admin_token
   }
 
   # Vector backend is config-only: Vertex when enabled, else pgvector. Splat +
