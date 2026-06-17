@@ -1,0 +1,6 @@
+# Downloaded original PDFs are large + copyrighted; the bytes live in the
+# blob store (DB), not the repo. Only the metadata manifest is tracked.
+downloads/
+
+# Track the metadata manifest despite the repo-wide *.json ignore.
+!manifest.json

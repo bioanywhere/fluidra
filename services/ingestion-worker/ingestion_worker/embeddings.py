@@ -69,8 +69,22 @@ class VertexEmbedder:
         self._model = TextEmbeddingModel.from_pretrained(model)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        results = self._model.get_embeddings(texts)
-        return [r.values for r in results]
+        # Vertex caps get_embeddings at 250 instances/request (and has a
+        # per-request token budget). Batch so large manuals (hundreds of chunks)
+        # ingest; on a size/limit error, shrink the batch and retry.
+        return self._embed_in_batches(list(texts), 100)
+
+    def _embed_in_batches(self, texts: list[str], batch: int) -> list[list[float]]:
+        out: list[list[float]] = []
+        for i in range(0, len(texts), batch):
+            part = texts[i : i + batch]
+            try:
+                out.extend(r.values for r in self._model.get_embeddings(part))
+            except Exception:
+                if batch <= 1:
+                    raise
+                out.extend(self._embed_in_batches(part, max(1, batch // 4)))
+        return out
 
 
 def get_embedder() -> Embedder:
