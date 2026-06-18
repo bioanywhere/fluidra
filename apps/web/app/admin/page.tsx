@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 
 // Same resolution as lib/api.ts: empty string in prod => same-origin (the load
 // balancer routes /v1/* to chat-api); undefined in local dev => localhost:8080.
@@ -13,6 +13,7 @@ type Doc = {
   model: string | null;
   url: string | null;
   locale: string | null;
+  doc_type: string | null;
   chunks: number;
   filename: string | null;
   size_bytes: number | null;
@@ -43,6 +44,11 @@ export default function AdminPage() {
   const [url, setUrl] = useState("");
   const [locale, setLocale] = useState("en");
   const [busy, setBusy] = useState(false);
+
+  // inline metadata editor
+  const [editing, setEditing] = useState<string | null>(null);
+  const [ev, setEv] = useState({ brand: "", model: "", doc_type: "", url: "", locale: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const headers = useCallback(() => ({ "X-Admin-Token": token }), [token]);
 
@@ -168,6 +174,45 @@ export default function AdminPage() {
     }
   }
 
+  function startEdit(d: Doc) {
+    setError(null);
+    setNotice(null);
+    setEditing(d.doc_id);
+    setEv({
+      brand: d.brand ?? "",
+      model: d.model ?? "",
+      doc_type: d.doc_type ?? "",
+      url: d.url ?? "",
+      locale: d.locale ?? "",
+    });
+  }
+
+  async function saveEdit(id: string) {
+    if (!ev.brand.trim() || !ev.model.trim()) {
+      setError("Brand and model can't be empty.");
+      return;
+    }
+    setSavingEdit(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`${API_BASE}/v1/admin/documents/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify(ev),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Update failed (${res.status}).`);
+      setNotice(`Updated "${id}" (${(data.updated ?? []).join(", ")}).`);
+      setEditing(null);
+      await load(token);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-6">
       <header className="mb-5 flex flex-wrap items-center gap-3">
@@ -283,6 +328,7 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
                   <th className="p-3">Document</th>
+                  <th className="p-3">Doc type</th>
                   <th className="p-3">Chunks</th>
                   <th className="p-3">File</th>
                   <th className="p-3">Uploaded</th>
@@ -292,51 +338,96 @@ export default function AdminPage() {
               <tbody>
                 {docs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-slate-400">
+                    <td colSpan={6} className="p-6 text-center text-slate-400">
                       No documents indexed yet.
                     </td>
                   </tr>
                 )}
                 {docs.map((d) => (
-                  <tr key={d.doc_id} className="border-b border-slate-100 last:border-0">
-                    <td className="p-3">
-                      <div className="font-medium text-slate-800">{d.doc_id}</div>
-                      <div className="text-xs text-slate-500">
-                        {[d.brand, d.model].filter(Boolean).join(" · ") || "—"}
-                      </div>
-                    </td>
-                    <td className="p-3 tabular-nums">{d.chunks}</td>
-                    <td className="p-3">
-                      {d.has_file ? (
-                        <span title={d.filename ?? ""}>{fmtBytes(d.size_bytes)}</span>
-                      ) : (
-                        <span className="text-slate-400">built-in</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-slate-500">
-                      {d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : "—"}
-                    </td>
-                    <td className="p-3">
-                      <div className="flex justify-end gap-2">
-                        {d.has_file && (
+                  <Fragment key={d.doc_id}>
+                    <tr className="border-b border-slate-100">
+                      <td className="p-3">
+                        <div className="font-medium text-slate-800">{d.doc_id}</div>
+                        <div className="text-xs text-slate-500">
+                          {[d.brand, d.model].filter(Boolean).join(" · ") || "—"}
+                        </div>
+                      </td>
+                      <td className="p-3 text-slate-600">{d.doc_type || "—"}</td>
+                      <td className="p-3 tabular-nums">{d.chunks}</td>
+                      <td className="p-3">
+                        {d.has_file ? (
+                          <span title={d.filename ?? ""}>{fmtBytes(d.size_bytes)}</span>
+                        ) : (
+                          <span className="text-slate-400">built-in</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-500">
+                        {d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : "—"}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => onDownload(d.doc_id, d.filename)}
+                            onClick={() => (editing === d.doc_id ? setEditing(null) : startEdit(d))}
                             className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
                           >
-                            Download
+                            {editing === d.doc_id ? "Close" : "Edit"}
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onDelete(d.doc_id)}
-                          className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                          {d.has_file && (
+                            <button
+                              type="button"
+                              onClick={() => onDownload(d.doc_id, d.filename)}
+                              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                            >
+                              Download
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onDelete(d.doc_id)}
+                            className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {editing === d.doc_id && (
+                      <tr className="border-b border-slate-100 bg-slate-50">
+                        <td colSpan={6} className="p-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="brand *" value={ev.brand} onChange={(v) => setEv({ ...ev, brand: v })} />
+                            <Field label="model *" value={ev.model} onChange={(v) => setEv({ ...ev, model: v })} />
+                            <Field label="doc type" value={ev.doc_type} onChange={(v) => setEv({ ...ev, doc_type: v })} placeholder="installation_manual, brochure, datasheet…" />
+                            <Field label="locale" value={ev.locale} onChange={(v) => setEv({ ...ev, locale: v })} placeholder="en" />
+                            <div className="sm:col-span-2">
+                              <Field label="source url (citation)" value={ev.url} onChange={(v) => setEv({ ...ev, url: v })} />
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(d.doc_id)}
+                              disabled={savingEdit}
+                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {savingEdit ? "Saving…" : "Save metadata"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditing(null)}
+                              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-white"
+                            >
+                              Cancel
+                            </button>
+                            <span className="text-xs text-slate-500">
+                              brand/model/url propagate to citations; no re-embedding.
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

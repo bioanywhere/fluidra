@@ -23,8 +23,9 @@ def test_missing_or_wrong_token_returns_401(monkeypatch):
     c = TestClient(app)
     assert c.get("/v1/admin/documents").status_code == 401
     assert c.get("/v1/admin/documents", headers={"X-Admin-Token": "nope"}).status_code == 401
-    # delete + upload are guarded the same way (no DB touched on the 401 path)
+    # delete + upload + patch are guarded the same way (no DB on the 401 path)
     assert c.delete("/v1/admin/documents/H0567500").status_code == 401
+    assert c.patch("/v1/admin/documents/H0567500", json={"brand": "X"}).status_code == 401
 
 
 def test_token_via_env_is_honored(monkeypatch):

@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 
 from ingestion_worker.pipeline import ingest
@@ -76,11 +77,14 @@ def _engine():
                         model        TEXT,
                         url          TEXT,
                         locale       TEXT,
-                        uploaded_at  TIMESTAMPTZ
+                        uploaded_at  TIMESTAMPTZ,
+                        doc_type     TEXT
                     )
                     """
                 )
             )
+            # doc_type was added later; ensure it exists on pre-existing tables.
+            conn.execute(text("ALTER TABLE manual_files ADD COLUMN IF NOT EXISTS doc_type TEXT"))
             conn.execute(
                 text(
                     """
@@ -106,7 +110,7 @@ async def list_documents(_: None = Depends(require_admin), rag=Depends(get_rag))
         with _engine().connect() as conn:
             rows = conn.execute(
                 text(
-                    "SELECT doc_id, filename, content_type, size_bytes, uploaded_at "
+                    "SELECT doc_id, filename, content_type, size_bytes, uploaded_at, doc_type "
                     "FROM manual_files"
                 )
             ).mappings()
@@ -116,10 +120,12 @@ async def list_documents(_: None = Depends(require_admin), rag=Depends(get_rag))
             m = meta.get(d["doc_id"])
             d["filename"] = m["filename"] if m else None
             d["size_bytes"] = m["size_bytes"] if m else None
+            d["doc_type"] = m["doc_type"] if m else None
             d["uploaded_at"] = (
                 m["uploaded_at"].isoformat() if m and m["uploaded_at"] else None
             )
-            d["has_file"] = m is not None
+            # a metadata-only row (edited built-in) has no filename/blob
+            d["has_file"] = bool(m and m["filename"])
         return docs
 
     return {"documents": await run_in_threadpool(_list)}
@@ -134,6 +140,7 @@ async def upload_document(
     model: str = Form(...),
     url: str = Form(""),
     locale: str = Form("en"),
+    doc_type: str = Form(""),
     rag=Depends(get_rag),
 ):
     """Ingest (or re-ingest) one manual. Replaces all chunks for `doc_id`."""
@@ -171,15 +178,16 @@ async def upload_document(
                     """
                     INSERT INTO manual_files
                       (doc_id, filename, content_type, size_bytes, sha256,
-                       brand, model, url, locale, uploaded_at)
+                       brand, model, url, locale, uploaded_at, doc_type)
                     VALUES
                       (:doc_id, :filename, :content_type, :size_bytes, :sha256,
-                       :brand, :model, :url, :locale, :uploaded_at)
+                       :brand, :model, :url, :locale, :uploaded_at, :doc_type)
                     ON CONFLICT (doc_id) DO UPDATE SET
                       filename=EXCLUDED.filename, content_type=EXCLUDED.content_type,
                       size_bytes=EXCLUDED.size_bytes, sha256=EXCLUDED.sha256,
                       brand=EXCLUDED.brand, model=EXCLUDED.model, url=EXCLUDED.url,
-                      locale=EXCLUDED.locale, uploaded_at=EXCLUDED.uploaded_at
+                      locale=EXCLUDED.locale, uploaded_at=EXCLUDED.uploaded_at,
+                      doc_type=EXCLUDED.doc_type
                     """
                 ),
                 {
@@ -188,6 +196,7 @@ async def upload_document(
                     "sha256": hashlib.sha256(raw).hexdigest(), "brand": brand,
                     "model": model, "url": url, "locale": locale,
                     "uploaded_at": datetime.now(timezone.utc),
+                    "doc_type": doc_type or None,
                 },
             )
             conn.execute(
@@ -224,6 +233,63 @@ async def delete_document(doc_id: str, _: None = Depends(require_admin), rag=Dep
     if removed == 0:
         raise HTTPException(404, f"no chunks found for doc_id {doc_id!r}")
     return {"doc_id": doc_id, "deleted_chunks": removed}
+
+
+class DocMetaPatch(BaseModel):
+    brand: str | None = None
+    model: str | None = None
+    doc_type: str | None = None
+    url: str | None = None
+    locale: str | None = None
+
+
+@router.patch("/documents/{doc_id}")
+async def update_document_metadata(
+    doc_id: str,
+    patch: DocMetaPatch,
+    _: None = Depends(require_admin),
+    rag=Depends(get_rag),
+):
+    """Edit a document's metadata. brand/model/url/locale propagate to the
+    retrieval chunks (so future citations reflect the change); doc_type is
+    document-level. No re-embedding — metadata only."""
+    store = rag[0]
+    fields = {k: v for k, v in patch.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(422, "no fields to update")
+
+    def _update():
+        if doc_id not in {d["doc_id"] for d in store.list_documents()}:
+            return False
+        with _engine().begin() as conn:
+            # retrieval chunks carry brand/model/url/locale (table name is the
+            # PgVectorStore default); doc_type is document-level only.
+            chunk_fields = {k: fields[k] for k in ("brand", "model", "url", "locale") if k in fields}
+            if chunk_fields:
+                sets = ", ".join(f"{k} = :{k}" for k in chunk_fields)
+                conn.execute(
+                    text(f"UPDATE manual_chunks SET {sets} WHERE doc_id = :doc_id"),
+                    {**chunk_fields, "doc_id": doc_id},
+                )
+            meta_fields = {k: fields[k] for k in ("brand", "model", "url", "locale", "doc_type") if k in fields}
+            if meta_fields:
+                sets = ", ".join(f"{k} = :{k}" for k in meta_fields)
+                res = conn.execute(
+                    text(f"UPDATE manual_files SET {sets} WHERE doc_id = :doc_id"),
+                    {**meta_fields, "doc_id": doc_id},
+                )
+                if (res.rowcount or 0) == 0:  # built-in doc: create a metadata-only row
+                    icols = ["doc_id", *meta_fields.keys()]
+                    ph = ", ".join(":" + c for c in icols)
+                    conn.execute(
+                        text(f"INSERT INTO manual_files ({', '.join(icols)}) VALUES ({ph})"),
+                        {"doc_id": doc_id, **meta_fields},
+                    )
+        return True
+
+    if not await run_in_threadpool(_update):
+        raise HTTPException(404, f"unknown doc_id {doc_id!r}")
+    return {"doc_id": doc_id, "updated": sorted(fields.keys())}
 
 
 @router.get("/documents/{doc_id}/file")
