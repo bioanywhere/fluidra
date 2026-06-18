@@ -17,6 +17,16 @@ variable "name" {
   type    = string
   default = "chat-api-lb"
 }
+variable "security_policy" {
+  type        = string
+  default     = ""
+  description = "Cloud Armor security policy self-link to attach to the backends (empty = none)."
+}
+variable "domain" {
+  type        = string
+  default     = ""
+  description = "Custom domain for HTTPS. Empty = HTTP-only on the IP (current dev). When set, a managed cert + :443 + HTTP->HTTPS redirect are created (DNS A-record must point at the output IP)."
+}
 
 # ── serverless NEGs ──────────────────────────────────────────────────────────
 resource "google_compute_region_network_endpoint_group" "api" {
@@ -41,6 +51,7 @@ resource "google_compute_backend_service" "api" {
   name                  = "${var.name}-api-bes"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
+  security_policy       = var.security_policy != "" ? var.security_policy : null
   backend { group = google_compute_region_network_endpoint_group.api.id }
 }
 
@@ -49,6 +60,7 @@ resource "google_compute_backend_service" "web" {
   name                  = "${var.name}-web-bes"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
+  security_policy       = var.security_policy != "" ? var.security_policy : null
   backend { group = google_compute_region_network_endpoint_group.web.id }
 }
 
@@ -72,10 +84,22 @@ resource "google_compute_url_map" "this" {
   }
 }
 
+# When a domain is set, port 80 redirects to HTTPS; otherwise it serves the app.
+resource "google_compute_url_map" "redirect" {
+  count   = var.domain != "" ? 1 : 0
+  project = var.project_id
+  name    = "${var.name}-redirect"
+  default_url_redirect {
+    https_redirect         = true
+    redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
+    strip_query            = false
+  }
+}
+
 resource "google_compute_target_http_proxy" "this" {
   project = var.project_id
   name    = "${var.name}-proxy"
-  url_map = google_compute_url_map.this.id
+  url_map = var.domain != "" ? one(google_compute_url_map.redirect[*].id) : google_compute_url_map.this.id
 }
 
 resource "google_compute_global_address" "this" {
@@ -92,6 +116,37 @@ resource "google_compute_global_forwarding_rule" "this" {
   ip_address            = google_compute_global_address.this.id
 }
 
+# ── HTTPS — only when a domain is provided. The Google-managed cert provisions
+#    automatically once the domain's DNS A-record points at the IP output below. ─
+resource "google_compute_managed_ssl_certificate" "this" {
+  count   = var.domain != "" ? 1 : 0
+  project = var.project_id
+  name    = "${var.name}-cert"
+  managed { domains = [var.domain] }
+}
+
+resource "google_compute_target_https_proxy" "this" {
+  count            = var.domain != "" ? 1 : 0
+  project          = var.project_id
+  name             = "${var.name}-https-proxy"
+  url_map          = google_compute_url_map.this.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.this[0].id]
+}
+
+resource "google_compute_global_forwarding_rule" "https" {
+  count                 = var.domain != "" ? 1 : 0
+  project               = var.project_id
+  name                  = "${var.name}-fr-https"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "443"
+  target                = google_compute_target_https_proxy.this[0].id
+  ip_address            = google_compute_global_address.this.id
+}
+
 output "ip" {
   value = google_compute_global_address.this.address
+}
+
+output "https_url" {
+  value = var.domain != "" ? "https://${var.domain}" : null
 }

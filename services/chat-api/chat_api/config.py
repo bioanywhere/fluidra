@@ -40,5 +40,10 @@ class Settings(BaseSettings):
     # (fail-closed). Set ADMIN_TOKEN on the service to enable the /admin page.
     admin_token: str = ""
 
+    # End-user auth. "stub" => fixed dev user (default). "firebase" => verify a
+    # Firebase ID token from the Authorization header (audience = project below).
+    auth_mode: str = "stub"
+    firebase_project_id: str = ""
+
 
 settings = Settings()

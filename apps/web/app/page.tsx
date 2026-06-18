@@ -1,4 +1,5 @@
 import { Chat } from "@/components/Chat";
+import { AuthGate } from "@/components/AuthGate";
 
 export default function Home() {
   return (
@@ -15,7 +16,9 @@ export default function Home() {
           <a href="/admin" className="rounded-full border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50">🔐 Admin</a>
         </nav>
       </header>
-      <Chat />
+      <AuthGate>
+        <Chat />
+      </AuthGate>
     </main>
   );
 }

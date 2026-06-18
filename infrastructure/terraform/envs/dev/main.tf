@@ -62,6 +62,9 @@ locals {
     # Corpus admin token. Empty => /v1/admin/* is disabled (fail-closed). Set
     # admin_token in terraform.tfvars to enable the /admin page durably.
     ADMIN_TOKEN = var.admin_token
+    # End-user auth: 'stub' (dev) or 'firebase' (verify ID tokens, audience = project).
+    AUTH_MODE           = var.auth_mode
+    FIREBASE_PROJECT_ID = var.firebase_project_id
   }
 
   # Vector backend is config-only: Vertex when enabled, else pgvector. Splat +
@@ -234,6 +237,13 @@ module "web" {
   env                   = { ENV = "dev" }
 }
 
+module "cloud_armor" {
+  count      = var.enable_cloud_armor ? 1 : 0
+  source     = "../../modules/cloud-armor"
+  project_id = var.project_id
+  depends_on = [module.services]
+}
+
 module "loadbalancer" {
   count            = var.enable_load_balancer ? 1 : 0
   source           = "../../modules/loadbalancer"
@@ -241,5 +251,7 @@ module "loadbalancer" {
   region           = var.region
   api_service_name = "chat-api"
   web_service_name = "web"
+  security_policy  = var.enable_cloud_armor ? one(module.cloud_armor[*].policy_id) : ""
+  domain           = var.domain
   depends_on       = [module.chat_api, module.web, module.services]
 }

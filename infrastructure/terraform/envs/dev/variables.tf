@@ -61,3 +61,27 @@ variable "admin_token" {
   sensitive   = true
   description = "Bearer token for the corpus admin API (/v1/admin/*) and the /admin page. Empty disables admin (fail-closed)."
 }
+
+variable "enable_cloud_armor" {
+  type        = bool
+  default     = false
+  description = "Attach a Cloud Armor security policy (per-IP rate limiting + optional WAF) to the load balancer backends."
+}
+
+variable "domain" {
+  type        = string
+  default     = ""
+  description = "Custom domain for HTTPS on the load balancer. Empty = HTTP-only on the IP. When set, point the domain's DNS A-record at the LB IP so the managed cert can provision."
+}
+
+variable "auth_mode" {
+  type        = string
+  default     = "stub"
+  description = "chat-api end-user auth: 'stub' (dev fixed user) or 'firebase' (verify Firebase ID tokens). Firebase also needs firebase_project_id."
+}
+
+variable "firebase_project_id" {
+  type        = string
+  default     = ""
+  description = "Firebase project id used to verify ID tokens (audience). Required when auth_mode=firebase."
+}
