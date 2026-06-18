@@ -3,7 +3,7 @@
 **Version:** 2.0 · **Status:** ✅ Deployed to a live dev environment on Google Cloud · **Audience:** Senior engineering team
 **Companion to:** the interactive strategy presentation (functional/business spec) and the exercise brief (scope, evaluation, constraints).
 
-> **Part 0 below is the AS-BUILT production documentation** — the real, deployed system, with live URLs, a map of every Google Cloud resource, diagrams, navigation steps, and configuration. Parts 1–13 that follow are the original design blueprint, kept for context; where the build deviated from the design, Part 0 §0.7 lists it explicitly.
+> **Part 0 below is the AS-BUILT production documentation** — the real, deployed system, with live URLs, a map of every Google Cloud resource, diagrams, navigation steps, and configuration. Parts 1–13 that follow are the original design blueprint, kept for context; where the build deviated from the design, Part 0 §0.8 lists it explicitly.
 
 ---
 
@@ -16,6 +16,7 @@ This part documents the system that is **actually running on Google Cloud**, not
 | What | URL | Notes |
 |---|---|---|
 | 💬 **Chat web app** | **http://8.233.81.31/** | The Next.js UI. Type "my salt system shows code 125". |
+| 🔐 **Admin (corpus)** | http://8.233.81.31/admin | Token-gated: list / upload / **edit** / delete manuals (`X-Admin-Token`). See §0.9. |
 | 📖 Original requirement | http://8.233.81.31/requirements.html | The interactive strategy presentation (`index.html`). |
 | 📘 This blueprint (rendered) | http://8.233.81.31/blueprint.html | This document with diagrams, served live. |
 | 📄 This blueprint (raw md) | http://8.233.81.31/Fluidra_Implementation_Blueprint.md | Markdown source. |
@@ -115,6 +116,7 @@ Set as Cloud Run env vars (non-secret) + Secret Manager (secret). Twelve-Factor:
 | `VERTEX_LOCATION` / `GCP_REGION` | `europe-west1` | region |
 | `CORS_ALLOW_ORIGINS` | `*` | allow the web app to call the API |
 | `DATABASE_URL`, `DATABASE_URL_SYNC` | *(Secret Manager)* | Cloud SQL via `/cloudsql` unix socket |
+| `ADMIN_TOKEN` | *(Cloud Run env / Secret)* | Gates the corpus admin API (`/v1/admin/*`) + `/admin` page; unset ⇒ admin disabled (fail-closed). See §0.9. |
 
 ## 0.7 How it's built & deployed
 
@@ -148,7 +150,39 @@ flowchart LR
 | Distroless runtime image | **python:3.12-slim** | Distroless Python base is 3.11; this project needs 3.12. |
 | Firebase JWT end-user auth | **Local auth stub** (`dev-user`) | Auth stub for the dev slice; Firebase verification is the one-file swap. |
 | LLM-as-judge groundedness | **Lexical groundedness** (≥0.8) | MVP heuristic; LLM-as-judge is Target state. |
-| Real ingested PDFs | **4 representative manuals** (manifest) | No PDFs supplied in-session; the parser is PDF-ready. |
+| Real ingested PDFs | **4 built-in + 4 official-domain PDFs** ingested live via the admin pipeline | PDFs are now ingested; see §0.9. |
+| Full automated crawl of all brand sites | **Direct-PDF fetch only**; 10/17 domains behind WAF/bot-protection | We don't bypass bot-detection; protected brands need an authorized source (§0.9). |
+| PDF text extraction | **pypdf (text layer only)** | Scanned/graphics PDFs extract thinly (e.g. a catalogue → 6 chunks); OCR via Document AI is Target state. |
+| Original-file storage | **Postgres `BYTEA` blobs** | Fine for the pilot; a GCS bucket + `gs://` pointer is recommended at scale (§0.9). |
+
+## 0.9 Corpus administration & web ingestion (as-built)
+
+Manuals are managed **live** — no rebuild, no batch job — through a token-gated admin surface. Changes write to the same `manual_chunks` table the chat endpoint reads, so they are queryable on the next turn.
+
+**Admin surface**
+- **Page:** `http://8.233.81.31/admin` (linked as 🔐 Admin from the chat header).
+- **API:** `…/v1/admin/*` on `chat-api` (the load balancer routes `/v1/*` there), gated by an `X-Admin-Token` header that must equal the service's `ADMIN_TOKEN`. **Fail-closed:** if `ADMIN_TOKEN` is unset, every admin call returns `503`.
+- **Operations:** `GET /documents` (list, including built-ins, with chunk counts + metadata) · `POST /documents` (upload PDF/MD/TXT → parse → chunk → embed → index; re-uploading a `doc_id` cleanly replaces it) · `GET /documents/{id}/file` (download the original) · `DELETE /documents/{id}` · `PATCH /documents/{id}` (**edit metadata** — `brand`/`model`/`url`/`locale` propagate to the retrieval chunks so future citations reflect the change, `doc_type` is document-level; metadata-only, no re-embedding).
+
+**Blob storage (originals)**
+Uploaded originals are stored on Google Cloud in **Cloud SQL Postgres** as `BYTEA`: `manual_files` (metadata) + `manual_file_blobs` (bytes). Round-trip verified byte-identical via the download endpoint. At corpus scale, move originals to a **GCS bucket** and keep only a `gs://…` pointer + checksum in Postgres (recommended; not yet wired).
+
+**Web ingestion of official manuals**
+For external brand PDFs the flow is: **download** (honest crawler UA; `robots.txt` / anti-bot posture respected — no bypass) → **dedup** by canonical URL + filename + size + **sha256** → **parse** (pypdf; OCR/Document AI is Target state) → **chunk** → **embed** (Vertex, batched) → **index** → live. Discovered documents and their full metadata are recorded in [`data/web_corpus/manifest.json`](https://github.com/bioanywhere/fluidra/blob/main/data/web_corpus/manifest.json).
+
+**Metadata captured per document**
+`brand` · `source_domain` · `original_url` · `title` · `file_name` · **`doc_type`** (manual / installation_guide / datasheet / brochure / catalogue / warranty / parts_list / troubleshooting / safety_sheet) · `product_category` · `product_model` · `language` · `version_or_date` · `file_size` · **`sha256`** · `ingestion_status` · `last_crawled` · `last_ingested`.
+
+**17-brand discovery findings (the source corpus)**
+- **10 of 17** Fluidra brand domains sit behind **Imperva/Incapsula bot-protection**; automated requests get WAF challenge stubs, not content. We **do not bypass bot-detection**, so those brands require an **authorized source** (DAM export, a direct-URL list, or browser-downloaded files), then ingest through the same pipeline.
+- **Official domains only** — third-party / distributor mirrors are never ingested as answers (blueprint §8.3).
+- **Pilot result (retrieval-validated, with correct citations):** AstralPool private-spa manual (366 chunks) · CMP DEL AOP 25/40 (21) · BAC PC 20 (16) · Cepex Ball Valves (6).
+
+**Supporting changes**
+- **Embedding batching** — `VertexEmbedder.embed` batches `get_embeddings` (Vertex caps at 250 instances/request) with an adaptive shrink for the per-request token budget; large manuals (hundreds of chunks) now ingest.
+- **`chat-api` sized to 2 GiB / 2 CPU** — a 15 MB / 366-chunk manual OOM-killed a 512 MiB instance.
+- **New DB objects:** `manual_files`, `manual_file_blobs` (the embeddings stay in `manual_chunks`).
+- **New config:** `ADMIN_TOKEN` (§0.6).
 
 ---
 
