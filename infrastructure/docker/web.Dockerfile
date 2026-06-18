@@ -18,6 +18,12 @@ RUN cp Fluidra_Implementation_Blueprint.md apps/web/public/Fluidra_Implementatio
 RUN pnpm install --frozen-lockfile
 ARG NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+# Firebase web config — inlined at build (NEXT_PUBLIC_*). Empty => anonymous
+# mode (current dev). Set both to turn on end-user sign-in (see AUTH_MODE).
+ARG NEXT_PUBLIC_FIREBASE_API_KEY=""
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID=""
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
 # exec resolves the (hoisted) next binary directly, bypassing the workspace
 # package's .bin shim which doesn't resolve in this container.
 RUN pnpm --filter web exec next build
